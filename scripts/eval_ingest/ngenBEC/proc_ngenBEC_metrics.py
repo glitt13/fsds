@@ -36,9 +36,6 @@ if __name__ == "__main__":
     col_schema_df = read_schm_ls_of_dict(schema_path = path_config)
 
     # Extract path and format the home_dir in case it was defined in file path
-    # TODO: make 'camels' more generic to handle other datasets as well (e.g., GAGES-II)
-    path_camels = (col_schema_df.loc[0, 'path_camels']
-                    .format(home_dir = str(Path.home())))
     path_data = (col_schema_df.loc[0, 'path_data']
                     .format(home_dir = str(Path.home())))
     dir_save = (col_schema_df.loc[0, 'dir_save']

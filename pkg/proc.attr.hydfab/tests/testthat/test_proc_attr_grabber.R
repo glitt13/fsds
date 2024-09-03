@@ -26,7 +26,7 @@ usgs_vars <- c('TOT_TWI','TOT_PRSNOW','TOT_POPDENS90','TOT_EWT','TOT_RECHG')
 dir_base <- system.file("extdata",package="proc.attr.hydfab")
 # Refer to temp_dir <- tempdir() in setup.R
 temp_dir <- local_temp_dir() # If running this on your own, source 'setup.R' first.
-dir_hydfab <- file.path(temp_dir,'hfab')
+dir_db_hydfab <- file.path(temp_dir,'hfab')
 dir_db_attrs <- file.path(temp_dir,'attrs') # used for temporary attr retrieval
 dir_db_attrs_pkg <- system.file("extdata","attributes_pah",package="proc.attr.hydfab")# permanent pacakage location
 dir_user <- system.file("extdata","user_data_std", package="proc.attr.hydfab") # dir_user <- "~/git/fsds/pkg/proc.attr.hydfab/inst/extdata/user_data_std/"
@@ -39,7 +39,7 @@ ha_vars <- c('pet_mm_s01', 'cly_pc_sav')#, 'cly_pc_uav') # hydroatlas variables
 sc_vars <- c() # TODO look up variables. May need to select datasets first
 usgs_vars <- c('TOT_TWI','TOT_PRSNOW')#,'TOT_POPDENS90','TOT_EWT','TOT_RECHG')
 
-Retr_Params <- list(paths = list(dir_hydfab=dir_hydfab,
+Retr_Params <- list(paths = list(dir_db_hydfab=dir_db_hydfab,
                                  dir_db_attrs=dir_db_attrs,
                                  s3_path_hydatl = s3_path_hydatl,
                                  dir_std_base = dir_user),
@@ -152,7 +152,7 @@ testthat::test_that("proc_attr_wrap", {
   Retr_Params$paths$dir_db_attrs <- Retr_Params$paths$dir_db_attrs %>%
                                     base::gsub(pattern=temp_dir,
                                                replacement=local_temp_dir2() )
-  Retr_Params$paths$dir_hydfab <- Retr_Params$paths$dir_hydfab %>%
+  Retr_Params$paths$dir_db_hydfab <- Retr_Params$paths$dir_db_hydfab %>%
                                   base::gsub(pattern=temp_dir,
                                              replacement =local_temp_dir2() )
   Retr_Params_all$vars$ha_vars <- c("pet_mm_s01","cly_pc_sav")
@@ -272,7 +272,7 @@ testthat::test_that("proc_attr_usgs_nhd", {
 
 
 testthat::test_that("proc_attr_hf not a comid",{
- testthat::expect_error(proc.attr.hydfab::proc_attr_hf(comid="13Notacomid14", dir_hydfab,
+ testthat::expect_error(proc.attr.hydfab::proc_attr_hf(comid="13Notacomid14", dir_db_hydfab,
                                                        custom_name="{lyrs}_",ext = 'gpkg',
                                                        lyrs=c('divides','network')[2],
                                                        hf_cat_sel=TRUE, overwrite=FALSE))

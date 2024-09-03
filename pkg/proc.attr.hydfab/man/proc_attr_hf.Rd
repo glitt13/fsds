@@ -6,7 +6,7 @@
 \usage{
 proc_attr_hf(
   comid,
-  dir_hydfab,
+  dir_db_hydfab,
   custom_name = "{lyrs}_",
   ext = "gpkg",
   lyrs = c("divides", "network")[2],
@@ -17,7 +17,7 @@ proc_attr_hf(
 \arguments{
 \item{comid}{character class. The common identifier USGS location code for a surface water feature.}
 
-\item{dir_hydfab}{character class. Local directory path for storing hydrofabric data}
+\item{dir_db_hydfab}{character class. Local directory path for storing hydrofabric data}
 
 \item{custom_name}{character class. A custom name to insert into hydrofabric file. Default \code{glue("{lyrs}_")}}
 
