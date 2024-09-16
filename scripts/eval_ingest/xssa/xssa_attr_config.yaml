@@ -32,7 +32,6 @@ attr_select: # Required. The names of variable sublistings are standardized, e.g
     - 'pet_mm_s01'
     - 'cly_pc_sav'
     - 'cly_pc_uav'
-    - 'cly_pc_sav'
     - 'ari_ix_sav'
   - 'usgs_vars': # list of variables retrievable using nhdplusTools::get_characteristics_metadata(). 
     - 'TOT_TWI'

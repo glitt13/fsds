@@ -1,0 +1,14 @@
+# Prediction configuration file
+name_attr_config: 'xssa_attr_config.yaml'  # REQUIRED. Name of the corresponding dataset's attribute configuration file, which should be in the same directory as this. If not provided, assumes 'attr' may be substituted for this filename's 'algo'
+name_algo_config: 'xssa_algo_config.yaml' # REQUIRED. The name of the algorithm configuration file if in same directory as this config file. Otherwise the full path to the file.
+name_attr_config: 'xssa_attr_config.yaml' # REQUIRED. The name of the attribute configuration file if in same directory as this config file. Otherwise the full path to the file.
+pred_file_in: '{dir_std_base}/juliemai-xSSA/prediction_locations_comid.csv' # may use directories defined in path_attr_config in the f-string
+pred_file_comid_colname: 'comid'
+path_attr_config: "{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attr_config.yaml"
+basepath_algos: 
+algo_response_vars: # List out the desired response variables (e.g. metrics, hydrologic signatures) for prediction. # TODO offer 'all'
+  - 'NSE'
+  - 'KGE'
+algo_type: # List out the regressor rr43walgorithms desired for prediction (e.g. rf, mlp).  # TODO offer 'all'
+  - 'rf'
+

@@ -25,28 +25,7 @@ from fs_algo.fs_algo_train_eval import AlgoTrainEval, AttrConfigAndVars
 from fs_algo import fs_algo_train_eval
 import warnings
 import xarray as xr
-# %% UNIT TESTING FOR NHDplus/dataset munging
-# class TestFsReadAttrComid(unittest.TestCase):
-   
-
-
-# class TestFsRetrNhdpComids(unittest.TestCase):
-#     @patch('fs_algo.fs_alg_train_eval.nldi.navigate_byid')
-
-# class TestCheckAttributesExist(unittest.TestCase):
-#     print("Testing _check_attributes_exist")
-#     # Mock DataFrame
-#     mock_pdf = pd.DataFrame({
-#         'data_source': 'hydroatlas__v1',
-#         'dl_timestamp': '2024-07-26 08:59:36',
-#         'attribute': ['pet_mm_s01', 'cly_pc_sav'],
-#         'value': [58, 21],
-#         'featureID': '1520007',
-#         'featureSource': 'COMID'
-#     })
-#     fs_algo_train_eval._check_attributes_exist(mock_pdf, ['pet_mm_s01','cly_pc_sav'])
-
-
+import os
 
 # %% UNIT TESTING FOR AttrConfigAndVars
 
@@ -158,44 +137,6 @@ class TestCheckAttributesExist(unittest.TestCase):
         with self.assertWarns(UserWarning):
             fs_algo_train_eval._check_attributes_exist(mock_pdf_bad,pd.Series(['pet_mm_s01','cly_pc_sav']))
         
-        # # with warnings.catch_warnings(record = True) as w:
-        # #     warnings.simplefilter("always")
-        # #     fs_algo_train_eval._check_attributes_exist(mock_pdf_bad,pd.Series(['pet_mm_s01','cly_pc_sav']))
-        # #     self.assertEqual(len(w),1)
-        
-        # mock_pdf_bad1 = mock_pdf.copy()
-        # mock_pdf_bad1['attribute'] = 'cly_pc_sav'
-
-        # with self.assertWarns(UserWarning):
-        #     fs_algo_train_eval._check_attributes_exist(mock_pdf_bad1,pd.Series(['pet_mm_s01','cly_pc_sav']))
-        
-        
-        # with warnings.catch_warnings(record = True) as w:
-        #     warnings.simplefilter("always")
-        #     fs_algo_train_eval._check_attributes_exist(mock_pdf_bad1,pd.Series(['pet_mm_s01','cly_pc_sav']))
-        #     self.assertEqual(len(w),1)
-
-    # @patch('fs_algo.fs_algo_train_eval.yaml.safe_load')
-    # def test_no_attrs_warning(self, mock_home, mock_file):
-    #     mock_dict_attr_config = {'attr_select': {'attr_vars': ['attr1','attr2']},
-    #                              'file_io': {'dir_base': '/path/dir/base',
-    #                                          'dir_db_attrs':'/path/dir/db/attrs',
-    #                                          'dir_std_base':'/path/dir/std/base'},
-    #                             'formulation_metadata':{'datasets':'test_ds'}}
-
-    # # @patch('pathlib.Path.home', return_value='/mocked/home')
-    # def test_no_attrs_warning(self, mock_home, mock_file):
-    #     path = '/path/to/config.yaml'
-    #     attr_obj = AttrConfigAndVars(path)
-
-        # TODO investigate this here. Began failing after 
-        # # Test if the Warning is raised correctly
-        # with self.assertWarns(Warning):
-        #     attr_obj._read_attr_config()
-
-        # Verify the default behavior when no attributes are selected
-        # self.assertEqual(attr_obj.attrs_cfg_dict['attrs_sel'], 'all')
-
 
 class TestFsRetrNhdpComids(unittest.TestCase):
 
@@ -267,6 +208,34 @@ class TestFindFeatSrceId(unittest.TestCase):
         rslt = fs_algo_train_eval._find_feat_srce_id(dat_resp = mock_xr, attr_config = attr_config)
         self.assertEqual(rslt,['nwissite','USGS-{gage_id}'])
 
+class build_cfig_path(unittest.TestCase):
+    def test_build_cfig_path(self):
+        dir_base = tempfile.gettempdir()
+        dir_new = Path(dir_base)/Path('testingitout')
+        dir_new.mkdir(exist_ok=True)
+        with self.assertRaises(FileNotFoundError):
+            path_cfig = fs_algo_train_eval.build_cfig_path(dir_new,'test.yaml')
+
+        with self.assertRaises(FileNotFoundError):
+            fs_algo_train_eval.build_cfig_path('this_dir/doesnt/exist','test.yaml')
+
+        with self.assertWarns(UserWarning):
+            fs_algo_train_eval.build_cfig_path(dir_new,'')
+
+    @patch('pathlib.Path.exists')
+    def test_file_exists(self, mock_exists):
+        dir_base = tempfile.gettempdir()
+        dir_new = Path(dir_base)/Path('testingitout')
+        path_known_config = Path(dir_new)/Path('test.yaml')
+        path_or_name_cfig = Path(dir_new)/Path('a_nother_config.yaml')
+
+        # Mock the existence of the directories and files, side_effect attr of mock object allws specifying a function or iterable called e/ time mock is called
+        mock_exists.side_effect = lambda: True # Tells the mock object to return True everytime the path.exists method called
+        rslt = fs_algo_train_eval.build_cfig_path(path_known_config, path_or_name_cfig)
+        # Assert
+        self.assertEqual(rslt, path_or_name_cfig)
+        self.assertEqual(mock_exists.call_count, 2)
+
 class TestFsSaveAlgoDirStruct(unittest.TestCase):
     def test_fs_save_algo_dir_struct(self):
         dir_base = tempfile.gettempdir()
@@ -285,6 +254,74 @@ class TestOpenResponseDataFsds(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, 'Could not identify an approach to read in dataset'):
             fs_algo_train_eval._open_response_data_fsds(self.dir_std_base,ds='not_a_ds')
+#%% ALGO TRAIN & EVAL
+class TestStdAlgoPath(unittest.TestCase):
+
+    @patch('pathlib.Path.mkdir')
+    @patch('pathlib.Path.exists')
+    def test_std_algo_path(self, mock_exists, mock_mkdir):
+        dir_out_alg_ds = tempfile.gettempdir()
+        algo = 'test_algo'
+        metric = 'test_metric'
+        dataset_id = 'test_dataset'
+        expected_path = Path(dir_out_alg_ds) / 'algo_test_algo_test_metric__test_dataset.joblib'
+
+        # Mock the existence of the directory
+        mock_exists.return_value = True
+
+        result = fs_algo_train_eval.std_algo_path(dir_out_alg_ds, algo, metric, dataset_id)
+        mock_mkdir.assert_called_once_with(exist_ok=True, parents=True)
+        self.assertEqual(result, expected_path)
+
+class TestStdPredPath(unittest.TestCase):
+    @patch('pathlib.Path.mkdir')
+    @patch('pathlib.Path.exists')
+    def test_std_pred_path(self, mock_exists, mock_mkdir):
+        dir_out = '/some/directory'
+        algo = 'test_algo'
+        metric = 'test_metric'
+        dataset_id = 'test_dataset'
+        expected_path = Path(dir_out) / 'algorithm_predictions' / dataset_id / 'pred_test_algo_test_metric__test_dataset.parquet'
+
+        # Mock the existence of the directory
+        mock_exists.return_value = True
+        result = fs_algo_train_eval.std_pred_path(dir_out, algo, metric, dataset_id)
+
+        mock_mkdir.assert_called_once_with(exist_ok=True, parents=True)
+        self.assertEqual(result, expected_path)
+
+class TestReadPredComid(unittest.TestCase):
+    @patch('pathlib.Path.exists')
+    @patch('pandas.read_csv')
+    def test_read_pred_comid(self, mock_read_csv, mock_exists):
+        # Arrange
+        path_pred_locs = '/some/directory/predictions.csv'
+        comid_pred_col = 'comid'
+        mock_exists.return_value = True
+        mock_read_csv.return_value = pd.DataFrame({comid_pred_col: [1, 2, 3]})
+
+        result = fs_algo_train_eval._read_pred_comid(path_pred_locs, comid_pred_col)
+        mock_exists.assert_called_once_with()
+        mock_read_csv.assert_called_once_with(path_pred_locs)
+        self.assertEqual(result, ['1', '2', '3'])
+
+    @patch('pathlib.Path.exists')
+    @patch('pandas.read_csv')
+    def test_read_csv_error(self, mock_read_csv, mock_exists):
+        path_pred_locs = '/some/directory/predictions.csv'
+        comid_pred_col = 'comid'
+        mock_exists.return_value = True
+        mock_read_csv.side_effect = Exception("Read CSV error")
+        with self.assertRaises(ValueError):
+            fs_algo_train_eval._read_pred_comid(path_pred_locs, comid_pred_col)
+
+    @patch('pathlib.Path.exists')
+    def test_unsupported_file_extension(self, mock_exists):
+        path_pred_locs = '/some/directory/predictions.txt'
+        comid_pred_col = 'comid'
+        mock_exists.return_value = True
+        with self.assertRaises(ValueError):
+            fs_algo_train_eval._read_pred_comid(path_pred_locs, comid_pred_col)
 
 
 # %% UNIT TEST FOR AlgoTrainEval class
@@ -303,11 +340,11 @@ class TestAlgoTrainEval(unittest.TestCase):
         self.attrs = ['attr1', 'attr2']
         self.algo_config = {
             'rf': {'n_estimators': 10},
-            'mlp': {'hidden_layer_sizes': (10,), 'max_iter': 200}
+            'mlp': {'hidden_layer_sizes': (10,), 'max_iter': 2000}
         }
         self.dataset_id = 'test_dataset'
         self.metric = 'metric1'
-
+        self.verbose = False
         # Output directory
         self.dir_out_alg_ds = tempfile.gettempdir()
 
@@ -395,20 +432,204 @@ class TestAlgoTrainEval(unittest.TestCase):
         self.assertIn('algo', self.train_eval.eval_df.columns)
         self.assertEqual(self.train_eval.eval_df['dataset'].iloc[0], self.dataset_id)
 
-    def test_train_eval(self):
-        # Test the overall wrapper method
-        with patch('joblib.dump'):
-            self.train_eval.train_eval()
+class TestAlgoTrainEvalMlti(unittest.TestCase):
 
-        # Check all steps completed successfully
-        self.assertFalse(self.train_eval.eval_df.empty)
-        self.assertIn('rf', self.train_eval.algs_dict)
-        self.assertIn('mlp', self.train_eval.algs_dict)
-        self.assertIn('rf', self.train_eval.preds_dict)
-        self.assertIn('mlp', self.train_eval.preds_dict)
-        self.assertIn('rf', self.train_eval.eval_dict)
-        self.assertIn('mlp', self.train_eval.eval_dict)
+    def setUp(self):
+        # Sample data for testing
+        data = {
+            'attr1': [1, 2, 3, 4, 5,1, 2, 3, 4, 5,1, 2, 3, 4, 5],
+            'attr2': [5, 4, 3, 2, 1,5, 4, 3, 2, 1,5, 4, 3, 2, 1],
+            'metric': [0.1, 0.9, 0.3, 0.1, 0.8,0.1, 0.9, 0.3, 0.1, 0.8,0.1, 0.9, 0.3, 0.1, 0.8]
+        }
+        self.df = pd.DataFrame(data)
+        self.attrs = ['attr1', 'attr2']
+        self.algo_config = {
+            'rf': [{'n_estimators': [10, 50]}],
+            'mlp': [{'hidden_layer_sizes': [(10,), (5, 5)], 'max_iter': [2000]}]
+        }
+        self.dir_out_alg_ds = './'
+        self.dataset_id = 'test_dataset'
+        self.metric = 'metric'
+        self.test_size = 0.3
+        self.rs = 32
+        self.verbose = False
+
+        self.algo_train_eval = AlgoTrainEval(self.df, self.attrs, self.algo_config, self.dir_out_alg_ds, self.dataset_id, self.metric, self.test_size, self.rs, self.verbose)
+
+    def test_initialization(self):
+        self.assertEqual(self.algo_train_eval.df.shape, self.df.shape)
+        self.assertEqual(self.algo_train_eval.attrs, self.attrs)
+        self.assertEqual(self.algo_train_eval.algo_config, self.algo_config)
+        self.assertEqual(self.algo_train_eval.dir_out_alg_ds, self.dir_out_alg_ds)
+        self.assertEqual(self.algo_train_eval.metric, self.metric)
+        self.assertEqual(self.algo_train_eval.test_size, self.test_size)
+        self.assertEqual(self.algo_train_eval.rs, self.rs)
+        self.assertEqual(self.algo_train_eval.dataset_id, self.dataset_id)
+        self.assertEqual(self.algo_train_eval.verbose, self.verbose)
+
+    def test_split_data(self):
+        self.algo_train_eval.split_data()
+        self.assertFalse(self.algo_train_eval.X_train.empty)
+        self.assertFalse(self.algo_train_eval.X_test.empty)
+        self.assertFalse(self.algo_train_eval.y_train.empty)
+        self.assertFalse(self.algo_train_eval.y_test.empty)
+        self.assertEqual(len(self.algo_train_eval.X_train) + len(self.algo_train_eval.X_test), len(self.df.dropna()))
+
+    def test_select_algs_grid_search(self):
+        self.algo_train_eval.select_algs_grid_search()
+        self.assertIn('mlp', self.algo_train_eval.grid_search_algs)
+        self.assertNotIn('mlp', self.algo_train_eval.algo_config)
+        self.assertIn('mlp', self.algo_train_eval.algo_config_grid)
+
+
+    def test_train_algos(self):
+        self.algo_train_eval.split_data()
+        self.algo_train_eval.select_algs_grid_search()
+        self.algo_train_eval.train_algos_grid_search()
+        self.assertTrue('rf' in  self.algo_train_eval.algo_config_grid)
+        self.assertIn('mlp', self.algo_train_eval.algs_dict)
+
+
+
+    def test_empty_dict(self):
+        d = {}
+        self.algo_train_eval.convert_to_list(d)
+        self.assertEqual(d, {})
+
+    def test_single_level_dict(self):
+        d = {'a': 1, 'b': 2}
+        self.algo_train_eval.convert_to_list(d)
+        self.assertEqual(d, {'a': [1], 'b': [2]})
+
+    def test_nested_dict(self):
+        d = {'a': {'sub1': 1, 'sub2': 2}, 'b': {'sub1': 3, 'sub2': {'subsub1': 4}}, 'c': 5}
+        self.algo_train_eval.convert_to_list(d)
+        self.assertEqual(d, {'a': {'sub1': [1], 'sub2': [2]}, 'b': {'sub1': [3], 'sub2': {'subsub1': [4]}}, 'c': [5]})
+
+    def test_already_list(self):
+        d = {'a': [1, 2], 'b': {'sub1': [3, 4]}}
+        self.algo_train_eval.convert_to_list(d)
+        self.assertEqual(d, {'a': [1, 2], 'b': {'sub1': [3, 4]}})
+
+
+class TestAlgoTrainEvalSngl(unittest.TestCase):
+    # An algo_config with singular hyperparameter value
+    def setUp(self):
+        # Sample data for testing
+        self.df = pd.DataFrame({
+            'attr1': [1, 2, 3, 4, 5],
+            'attr2': [5, 4, 3, 2, 1],
+            'metric': [1, 0, 1, 0, 1]
+        })
+        self.attrs = ['attr1', 'attr2']
+        self.algo_config = {'some_algo': {'param1': 1}}
+        self.dir_out_alg_ds = 'some/dir'
+        self.dataset_id = 'dataset_1'
+        self.metr = 'metric'
+        self.test_size = 0.3
+        self.rs = 32
+        self.verbose = False
+        self.algo_config_grid = dict()
+        self.grid_search_algs=list()
+
+        self.algo_train_eval = AlgoTrainEval(
+            self.df, self.attrs, self.algo_config, self.dir_out_alg_ds,
+            self.dataset_id, self.metr, self.test_size, self.rs, self.verbose
+        )
+
+    @patch.object(AlgoTrainEval, 'split_data')
+    @patch.object(AlgoTrainEval, 'select_algs_grid_search')
+    @patch.object(AlgoTrainEval, 'train_algos_grid_search')
+    @patch.object(AlgoTrainEval, 'train_algos')
+    def test_train_eval(self, mock_train_algos, mock_train_algos_grid_search, mock_select_algs_grid_search, mock_split_data):
+        # Mock the methods to avoid actual execution
+        mock_split_data.return_value = None
+        mock_select_algs_grid_search.return_value = None
+        mock_train_algos_grid_search.return_value = None
+        mock_train_algos.return_value = None
+
+        # Call the method
+        self.algo_train_eval.train_eval()
+
+        # Assert that the methods were or were not called
+        mock_split_data.assert_called_once()
+        mock_select_algs_grid_search.assert_called_once()
+        mock_train_algos_grid_search.assert_not_called()
+        mock_train_algos.assert_called_once()
+
+class TestAlgoTrainEvalBasic(unittest.TestCase):
+
+    def setUp(self):
+        # Set up a small test dataframe
+        self.df = pd.DataFrame({
+            'attr1': [1, 2, 3, 4, 5,1, 2, 3, 4, 5,1, 2, 3, 4, 5],
+            'attr2': [5, 4, 3, 2, 1,5, 4, 3, 2, 1,5, 4, 3, 2, 1],
+            'target': [10, 15, 20, 25, 30,10, 15, 20, 25, 30,10, 15, 20, 25, 30]
+        })
+        self.attrs = ['attr1', 'attr2']
+        self.algo_config = {
+            'rf': [{'n_estimators': [10,30,40]}],
+            'mlp': [{'hidden_layer_sizes': (50,)}]
+        }
+        self.dir_out_alg_ds = '/tmp'
+        self.dataset_id = 'test_ds'
+        self.metric = 'target'
+        self.test_size = 0.2
+        self.rs = 42
+        self.verbose = False
+        self.algo_config_grid = dict()
+        self.algo = AlgoTrainEval(self.df, self.attrs, self.algo_config,
+                                  self.dir_out_alg_ds, self.dataset_id, 
+                                  self.metric, self.test_size, self.rs, 
+                                  self.verbose)
+
+    @patch('joblib.dump')  # Mock saving the model to disk
+    @patch('sklearn.model_selection.train_test_split', return_value=(pd.DataFrame(), pd.DataFrame(), pd.Series(), pd.Series()))
+    @patch('sklearn.ensemble.RandomForestRegressor')
+    @patch('sklearn.neural_network.MLPRegressor')
+    def test_train_eval(self, MockMLP, MockRF, mock_train_test_split, mock_joblib_dump):
+        # Mocking train algorithms
+        mock_rf_model = MagicMock()
+        mock_mlp_model = MagicMock()
+
+        # Assign these mock models to the mock class
+        MockRF.return_value = mock_rf_model
+        MockMLP.return_value = mock_mlp_model
+
+        # Mock the predictions
+        mock_rf_model.predict.return_value = [10, 20, 30]
+        mock_mlp_model.predict.return_value = [15, 25, 35]
+
+        # Run the method
+        self.algo.train_eval()
+
+        # Check if the train_test_split was called correctly
+        #mock_train_test_split.assert_called()
+
+        # Check that the RandomForest and MLP models were trained
+        # MockRF.assert_called_once()
+        # MockMLP.assert_called_once()
+        # self.assertIn('rf',self.algo_config_grid)
+        # self.assertIn('mlp',self.algo_config)
+
+        # Check predictions and evaluations were made
+        self.assertIn('rf', self.algo.preds_dict)
+        self.assertIn('mlp', self.algo.preds_dict)
+
+
+
+        self.assertIn('rf', self.algo.eval_dict)
+        self.assertIn('mlp', self.algo.eval_dict)
+
+        # Check if models were saved
+        mock_joblib_dump.assert_called()
+
+        # Check eval dataframe was created
+        self.assertIsInstance(self.algo.eval_df, pd.DataFrame)
+        self.assertFalse(self.algo.eval_df.empty)
 
 
 if __name__ == '__main__':
     unittest.main()
+
+# %%

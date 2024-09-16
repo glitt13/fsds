@@ -4,6 +4,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import GridSearchCV
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -49,7 +50,7 @@ class AttrConfigAndVars:
 
         if len(attrs_sel) == None: # If no attributes generated, assume all attributes are of interest
             attrs_sel = 'all'
-            raise warnings.warn(f"No attributes discerned from 'attr_select'. Assuming all attributes desired.")
+            raise warnings.warn(f"No attributes discerned from 'attr_select'. Assuming all attributes desired.",UserWarning)
         
         home_dir = str(Path.home())
         dir_base = list([x for x in self.attr_config['file_io'] if 'dir_base' in x][0].values())[0].format(home_dir=home_dir)
@@ -127,7 +128,10 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
         attr_df_sub['value'] = np.float64(attr_df_sub['value'])
 
     if attr_df_sub['value'].isna().any():
-        warnings.warn('The attribute dataset contains unexpected NA values, which may be problematic for some algo training/testing. Consider reprocessing the attribute grabber (fsds.attr.hydfab R package)')
+        warnings.warn('The attribute dataset contains unexpected NA values, \
+                      which may be problematic for some algo training/testing. \
+                      \nConsider reprocessing the attribute grabber (fsds.attr.hydfab R package)',
+                      UserWarning)
 
     return attr_df_sub
 
@@ -153,19 +157,23 @@ def _check_attributes_exist(df_attr: pd.DataFrame, attrs_sel:pd.Series | Iterabl
         
         # multiple combos of comid/attrs exist. Find them and warn about it.
         vec_missing = df_attr.groupby('featureID')['attribute'].count() != len(attrs_sel)
-        bad_comids = vec_missing.index.values
+        bad_comids = vec_missing.index.values[vec_missing]
         
+        warnings.warn(f"    TOTAL unique locations with missing attributes: {len(bad_comids)}",UserWarning)
         df_attr_sub_missing = df_attr[df_attr['featureID'].isin(bad_comids)]
-
+    
         missing_attrs = attrs_sel[~attrs_sel.isin(df_attr_sub_missing['attribute'])]
+        warnings.warn(f"    TOTAL MISSING ATTRS: {len(missing_attrs)}",UserWarning)
+        str_missing = '\n    '.join(missing_attrs.values)
 
-        warn_msg_missing_attrs = f"Not all featureID groupings (i.e. COMID groups) contain \
-        the same number of catchment attributes. \
+        warn_msg_missing_attrs = "\
+        \n Not all featureID groupings (i.e. COMID groups) contain the same number of catchment attributes. \
         \n This could be problematic for model training. \
-        \n Consider running attribute grabber with fsds.attr.hydfab. \
-        \n Missing attributes include: {', '.join(missing_attrs)}"
-
-        warnings.warn(warn_msg_missing_attrs,UserWarning)
+        \n Consider running attribute grabber with fsds.attr.hydfab."
+        warn_msg2 = "\nMissing attributes include: \n    " + str_missing
+        warn_msg_3 = "\n COMIDs with missing attributes include: \n" + ', '.join(bad_comids)
+        warnings.warn(warn_msg_missing_attrs + warn_msg2 + warn_msg_3,UserWarning)
+        
     
     return {'df_attr': df_attr, 'attrs_sel': attrs_sel}
 
@@ -240,10 +248,35 @@ def fs_retr_nhdp_comids(featureSource:str,featureID:str,gage_ids: Iterable[str] 
     
     if len(comids_resp) != len(gage_ids) or comids_resp.count(None) > 0: # May not be an important check
         raise warnings.warn("The total number of retrieved comids does not match \
-                      total number of provided gage_ids")
+                      total number of provided gage_ids",UserWarning)
 
     return comids_resp
 
+def build_cfig_path(path_known_config:str | os.PathLike, path_or_name_cfig:str | os.PathLike) -> os.PathLike | None:
+    """Build the expected configuration file path within the RAFTS framework
+
+    :param path_known_config: path of the known configuration sent 
+    :type path_known_config: str | os.PathLike
+    :param path_or_name_cfig: Path or name of configuration file. If only name provided, it's assumed it resides in same directory as `path_known_config`
+    :type path_or_name_cfig: str | os.PathLike
+    :raises FileNotFoundError: The provided `path_known_config` does not exist
+    :raises FileNotFoundError: The desired configuration file does not exist
+    :return: The path to another relevant configuration file used for a different step in RAFTS processing
+    :rtype: os.PathLike | None
+    """
+    dir_parent_cfig = Path(path_known_config).parent
+    if not dir_parent_cfig.exists():
+        raise FileNotFoundError(f"The provided 'known' configuration file does not exist: \n{path_known_config}")
+    if path_or_name_cfig: # Only perform if path_or_name_cfig not None
+        path_cfig = Path(dir_parent_cfig/Path(path_or_name_cfig))
+        if not path_cfig.exists():
+            path_cfig = Path(path_or_name_cfig)
+            if not path_cfig.exists():
+                raise FileNotFoundError(f'The following configuration file could not be found: \n{path_or_name_cfig}')
+    else:
+        warnings.warn("The configuration file may not have specified the path or file name.",UserWarning)
+        path_cfig = None
+    return path_cfig
 
 def fs_save_algo_dir_struct(dir_base: str | os.PathLike ) -> dict:
     """Generate a standard file saving directory structure
@@ -320,10 +353,55 @@ def std_algo_path(dir_out_alg_ds:str | os.PathLike, algo: str, metric: str, data
     :return: full save path for joblib object
     :rtype: str
     """
+    Path(dir_out_alg_ds).mkdir(exist_ok=True,parents=True)
     basename_alg_ds_metr = f'algo_{algo}_{metric}__{dataset_id}'
     path_algo = Path(dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
     return path_algo
 
+def std_pred_path(dir_out: str | os.PathLike, algo: str, metric: str, dataset_id: str) -> str:
+    """Standardize the prediction results save path
+
+    :param dir_out: The base directory for saving output
+    :type dir_out: str | os.PathLike
+    :param algo: The type of algorithm
+    :type algo: str
+    :param metric: The metric or hydrologic signature identifier of interest
+    :type metric: str
+    :param dataset_id: Unique identifier/descriptor of the dataset of interest
+    :type dataset_id: str
+    :return: full save path for parquet dataframe object of results
+    :rtype: str
+    """
+    dir_preds_base = Path(Path(dir_out)/Path('algorithm_predictions'))
+    dir_preds_ds = Path(dir_preds_base/Path(dataset_id))
+    dir_preds_ds.mkdir(exist_ok=True,parents=True)
+    basename_pred_alg_ds_metr = f"pred_{algo}_{metric}__{dataset_id}.parquet"
+    path_pred_rslt = Path(dir_preds_ds)/Path(basename_pred_alg_ds_metr)
+    return path_pred_rslt
+
+def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> list[str]:
+    """Read the comids from a prediction file formatted as .csv
+
+    :param path_pred_locs: The path to prediction data location, containing the comid
+    :type path_pred_locs: str | os.PathLike
+    :param comid_pred_col: The column name corresponding to the comid inside the prediction location dataset
+    :type comid_pred_col: str
+    :raises ValueError: Could not read the location data file and/or subselect the comid column
+    :raises ValueError: File extension of location data file not recognized
+    :return: list of comids
+    :rtype: list[str]
+    """
+    if not Path(path_pred_locs).exists():
+        FileNotFoundError(f"The path to prediction location data could not be found: \n{path_pred_locs} ")
+    if '.csv' in Path(path_pred_locs).suffix:
+        try:
+            comids_pred = pd.read_csv(path_pred_locs)[comid_pred_col].values
+        except:
+            raise ValueError(f"Could not successfully read in {path_pred_locs} & select col {comid_pred_col}")
+    else:
+        raise ValueError(f"NEED TO ADD CAPABILITY THAT HANDLES {Path(path_pred_locs).suffix} file extensions")
+    comids_pred = [str(x) for x in comids_pred]
+    return comids_pred
 class AlgoTrainEval:
     def __init__(self, df: pd.DataFrame, attrs: Iterable[str], algo_config: dict,
                  dir_out_alg_ds: str | os.PathLike, dataset_id: str,
@@ -372,10 +450,9 @@ class AlgoTrainEval:
         self.y_train = pd.Series()
         self.y_test = pd.Series()
         
-        # scaling
-        self.scaler = None
-        self.X_train_sc = pd.DataFrame()
-        self.X_test_sc = pd.DataFrame()
+        # grid search
+        self.algo_config_grid = dict()
+        self.grid_search_algs = list()
 
         # train/pred/eval metadata
         self.algs_dict = {}
@@ -397,26 +474,81 @@ class AlgoTrainEval:
         # Check for NA values first
         self.df_non_na = self.df[self.attrs + [self.metric]].dropna()
         if self.df_non_na.shape[0] < self.df.shape[0]:
-            warnings.warn(f"\n\n \
+            warnings.warn(f"\
                 \n   !!!!!!!!!!!!!!!!!!!\
                 \n   NA VALUES FOUND IN INPUT DATASET!! \
                 \n   DROPPING {self.df.shape[0] - self.df_non_na.shape[0]} ROWS OF DATA. \
-                \n   !!!!!!!!!!!!!!!!!!! \n\n")
+                \n   !!!!!!!!!!!!!!!!!!!",UserWarning)
             
 
         X = self.df_non_na[self.attrs]
         y = self.df_non_na[self.metric]
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X,y, test_size=self.test_size, random_state=self.rs)
 
-    def normalize_data(self):
-        #df_all = pd.concat([self.X_train, self.X_test]
-        if not self.scaler():
-            self.scaler = Normalizer()
-            self.X_train_sc = self.scaler.fit_transform(self.X_train)
-            self.X_test_sc = self.scalertransform(self.X_test)
+    
+    def convert_to_list(self,d:dict) ->dict:
+        """Runcheck: In situations where self.algo_config_grid is used, all objects must be iterables 
 
+        :param d: A dict containing sub-dicts with key-value pairs
+        :type d: dict
+        :return: The dict where any non-iterable values have been converted into a list
+        :rtype: dict
+        """
+        for key, value in d.items():
+            if isinstance(value, dict):
+                self.convert_to_list(value)
+            elif not isinstance(value, (list, tuple)):
+                d[key] = [value]
+        return(d)
 
-            
+    def list_to_dict(self, config_ls):
+        # When a config object is inconveniently formatted as a list of multiple dict
+        if isinstance(config_ls,list):
+            config_dict = {}
+            for d in config_ls:
+                config_dict.update(d)
+        else:
+            config_dict = config_ls
+        return config_dict
+    
+    def select_algs_grid_search(self):
+        """Determines which algorithms' params involve hyperparameter tuning
+        """
+        ls_move_to_srch_cfig = list()
+        for k, alg_ls in self.algo_config.items():
+            sub_dict = {k: alg_dict[k] for alg_dict in alg_ls for k in alg_dict.keys()}
+            totl_opts_per_param = list()
+            for kk, v in sub_dict.items():
+                if isinstance(v,Iterable) and len(v)>1:
+                    totl_opts_per_param.append(len(v))
+                else:
+                    totl_opts_per_param.append(1)
+            if any([x > 1 for x in totl_opts_per_param]):
+                if self.verbose:
+                    print(f"Performing grid search CV for {k}")
+                self.grid_search_algs.append(k)
+                ls_move_to_srch_cfig.append(k)
+
+        # Move hyperparams from basic algo params into grid search params
+        for k in ls_move_to_srch_cfig:
+            self.algo_config_grid[k] = self.algo_config.pop(k)
+        
+        # Convert lists inside algo_config_grid['algo_name_here'] to a dict:
+        dict_acg = {}
+        for key, val in self.algo_config_grid.items():
+            dict_acg[key] = self.list_to_dict(val)
+        self.algo_config_grid = dict_acg
+
+        # Convert lists inside algo_config['algo_name_here'] to a dict:    
+        dict_ac = {}
+        for key, val in self.algo_config.items():
+            dict_ac[key] = self.list_to_dict(val)
+        self.algo_config = dict_ac
+
+        if self.algo_config_grid: # If there are non iterable values, convert them to lists to aid the algo training
+            # e.g. {'activation':'relu'} becomes {'activation':['relu']}
+            self.algo_config_grid  = self.convert_to_list(self.algo_config_grid)
+
     def train_algos(self):
         """Train algorithms based on what has been defined in the algo config file Algorithm options include the following:
         
@@ -427,8 +559,11 @@ class AlgoTrainEval:
         if 'rf' in self.algo_config:  # RANDOM FOREST
             if self.verbose:
                 print(f"      Performing Random Forest Training")
+            
             rf = RandomForestRegressor(n_estimators=self.algo_config['rf'].get('n_estimators'),
-                                       random_state=self.rs)
+                                       oob_score=True,
+                                       random_state=self.rs,
+                                       )
             pipe_rf = make_pipeline(rf)                           
             pipe_rf.fit(self.X_train, self.y_train)
             self.algs_dict['rf'] = {'algo': rf,
@@ -457,6 +592,54 @@ class AlgoTrainEval:
                                      'pipeline': pipe_mlp,
                                      'type': 'multi-layer perceptron regressor',
                                      'metric': self.metric}
+
+   
+    def train_algos_grid_search(self):
+        """Train algorithms using GridSearchCV based on the algo config file.
+        
+        Algorithm options include the following:
+        
+            - `rf` for :class:`sklearn.ensemble.RandomForestRegressor`
+            - `mlp` for :class:`sklearn.neural_network.MLPRegressor`
+        """
+
+        if 'rf' in self.algo_config_grid:  # RANDOM FOREST
+            if self.verbose:
+                print(f"      Performing Random Forest Training with Grid Search")
+            rf = RandomForestRegressor(oob_score=True, random_state=self.rs)
+            # TODO move into main Param dict
+            param_grid_rf = {
+                'randomforestregressor__n_estimators': self.algo_config_grid['rf'].get('n_estimators', [100, 200, 300])
+            }
+            pipe_rf = make_pipeline(rf)
+            grid_rf = GridSearchCV(pipe_rf, param_grid_rf, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+            grid_rf.fit(self.X_train, self.y_train)
+            self.algs_dict['rf'] = {'algo': grid_rf.best_estimator_.named_steps['randomforestregressor'],
+                                    'pipeline': grid_rf.best_estimator_,
+                                    'gridsearchcv': grid_rf,
+                                    'type': 'random forest regressor',
+                                    'metric': self.metric}
+
+        if 'mlp' in self.algo_config_grid:  # MULTI-LAYER PERCEPTRON
+            if self.verbose:
+                print(f"      Performing Multilayer Perceptron Training with Grid Search")
+            mlpcfg = self.algo_config_grid['mlp']
+            mlp = MLPRegressor(random_state=self.rs)
+            param_grid_mlp = {
+                'mlpregressor__hidden_layer_sizes': mlpcfg.get('hidden_layer_sizes', [(100,), (50, 50)]),
+                'mlpregressor__activation': mlpcfg.get('activation', ['relu', 'tanh']),
+                'mlpregressor__solver': mlpcfg.get('solver', ['lbfgs', 'adam']),
+                'mlpregressor__alpha': mlpcfg.get('alpha', [0.001, 0.01]),
+                'mlpregressor__learning_rate': mlpcfg.get('learning_rate', ['constant', 'adaptive']),
+                'mlpregressor__max_iter': mlpcfg.get('max_iter', [200, 300])
+            }
+            pipe_mlp = make_pipeline(StandardScaler(), mlp)
+            grid_mlp = GridSearchCV(pipe_mlp, param_grid_mlp, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+            grid_mlp.fit(self.X_train, self.y_train)
+            self.algs_dict['mlp'] = {'algo': grid_mlp.best_estimator_,
+                                    'pipeline': grid_mlp,
+                                    'type': 'multi-layer perceptron regressor',
+                                    'metric': self.metric}
 
     def predict_algos(self) -> dict:
         """ Make predictions with trained algorithms   
@@ -541,16 +724,23 @@ class AlgoTrainEval:
         # Run the train/test split
         self.split_data()
 
-        # Train algorithms # returns self.algs_dict 
-        self.train_algos()
+        # Check whether supplied params designed for grid search:
+        self.select_algs_grid_search()
+
+        # Train algorithms; returns self.algs_dict 
+        if self.grid_search_algs: # Perform hyperparameterization grid search for these algos
+            self.train_algos_grid_search()
+
+        if self.algo_config: # Just run a single simulation for these algos
+            self.train_algos()
 
         # Make predictions  # 
         self.predict_algos()
 
-        # Evaluate predictions # returns self.eval_dict
+        # Evaluate predictions; returns self.eval_dict
         self.evaluate_algos()
 
-        # Write algorithms to file # returns self.algs_dict_paths
+        # Write algorithms to file; returns self.algs_dict_paths
         self.save_algos()
 
         # Generate metadata dataframe

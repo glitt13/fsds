@@ -414,7 +414,7 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   #' @param featureSource The \code{\link[nhdplusTools]{get_nldi_features}}feature featureSource,
   #' e.g. 'nwissite'
   #' @param featureID a glue-configured conversion of gage_id into a recognized
-  #' featureID for \code{\link[nhdplusTools]{get_nldi_features}}. E.g. if gage_id is
+  #' featureID for \code{\link[nhdplusTools]{get_nldi_features}}. E.g. if gage_id
   #' represents exactly what the nldi_feature$featureID should be, then
   #'  featureID="{gage_id}". In other instances, conversions may be necessary,
   #'  e.g. featureID="USGS-{gage_id}". When defining featureID, it's expected
