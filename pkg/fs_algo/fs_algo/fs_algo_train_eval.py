@@ -116,7 +116,7 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
 
     if attr_df_sub.shape[0] == 0:
         warnings.warn(f'The provided attributes do not exist with the retrieved featureIDs : \
-                        \n {','.join(attrs_sel)}',UserWarning)
+                        \n {",".join(attrs_sel)}',UserWarning)
  
     # Run check that all variables are present across all basins
     dict_rslt = _check_attributes_exist(attr_df_sub,attrs_sel)
