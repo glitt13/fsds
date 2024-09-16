@@ -104,7 +104,7 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
 
     if attr_ddf_subloc.shape[0].compute() == 0:
         warnings.warn(f'None of the provided featureIDs exist in {dir_db_attrs}: \
-                      \n {', '.join(attrs_sel)} ', UserWarning)
+                      \n {", ".join(attrs_sel)} ', UserWarning)
     
     # Subset based on attributes of interest
     if attrs_sel == 'all':
