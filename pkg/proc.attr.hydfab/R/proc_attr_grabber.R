@@ -468,7 +468,7 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
       # Retrieve the variables corresponding to datasets of interest & update database
       loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
                                                     Retr_Params=Retr_Params,
-                                                    lyrs='network',overwrite=FALSE))
+                                                    lyrs=lyrs,overwrite=FALSE))
       if("try-error" %in% class(loc_attrs)){
         message(glue::glue("Skipping gage_id {gage_id} corresponding to comid {comid}"))
       }
