@@ -114,11 +114,11 @@ testthat::test_that('check_attr_selection', {
   ## Using a config yaml
   # Test for requesting something NOT in the attr menu
   attr_cfg_path_missing <- paste0(dir_base, '/xssa_attr_config_missing_vars.yaml')
-  testthat::expect_warning(expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path_missing), c("TOT_TWi", "TOT_POPDENS91")))
+  testthat::expect_message(testthat::expect_warning(expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path_missing), c("TOT_TWi", "TOT_POPDENS91"))))
   
   # Test for only requesting vars that ARE in the attr menu
   attr_cfg_path <- paste0(dir_base, '/xssa_attr_config_all_vars_avail.yaml')
-  testthat::expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path), NA)
+  testthat::expect_message(testthat::expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path), NA))
   
   
   ## Using a list of variables of interest instead of a config yaml
