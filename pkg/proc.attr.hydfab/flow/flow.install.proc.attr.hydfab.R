@@ -17,15 +17,15 @@ lapply(c("devtools","roxygen2","testthat","covr"), library, character.only = TRU
 # ---------------------------------------------------------------------------- #
 #  Define user-specific paths for installation
 if ('bolotin' %in% Sys.getenv("HOME")) {
-  # if you have a different path to fsds, add it here, otherwise remove
+  # if you have a different path to formulation-selector, add it here, otherwise remove
 } else if ('choat' %in% Sys.getenv("HOME")){
-  # if you have a different path to fsds, add it here, otherwise remove
-} else { # assume this is the path to the fsds dir
-  fsds_dir <- file.path(Sys.getenv("HOME"),"git","fsds")
+  # if you have a different path to formulation-selector, add it here, otherwise remove
+} else { # assume this is the path to the formulation-selector repo dir
+  fsds_dir <- file.path(Sys.getenv("HOME"),"git","formulation-selector")
 }
 # Run unit tests?
-RunTest <- FALSE#TRUE Default FALSE prevents s3 data downloading in unit testing (FALSE=fast)
-ShowTestCovr <- TRUE # Only possible if RunTest==TRUE. Even slower though.
+RunTest <- TRUE#TRUE Default FALSE prevents s3 data downloading in unit testing (FALSE=fast)
+ShowTestCovr <- FALSE # Only possible if RunTest==TRUE. Even slower though.
 # ---------------------------------------------------------------------------- #
 # Enter in all R packages here
 namePack <- c("proc.attr.hydfab")

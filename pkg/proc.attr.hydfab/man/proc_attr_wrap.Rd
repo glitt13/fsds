@@ -23,7 +23,8 @@ Re-processing runs only download data that have not yet been acquired.
 }
 \details{
 Function returns & writes a data.table of all these fields:
-COMID - USGS common identifier
+featureID - e.g. USGS common identifier (default)
+featureSource - e.g. "COMID" (default)
 data_source - where the data came from (e.g. 'usgs_nhdplus__v2','hydroatlas__v1')
 dl_timestamp - timestamp of when data were downloaded
 attribute - the variable identifier used in a particular dataset

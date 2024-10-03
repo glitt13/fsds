@@ -1,15 +1,17 @@
 '''
-Helper functions for processing evaluation metrics datasets
-author:: Guy Litt <guy.litt@noaa.gov>
-description:: functions read in yaml schema and standardize metrics datasets
-notes:: developed using python v3.12
+proc_eval_metrics.py
 
-Changelog/contributions
-    2024-07-02 Originally created, GL
-    2024-07-09 added different file format/dir path options; add file format checkers, GL
+Helper functions for processing evaluation metrics datasets
+
+:author: Guy Litt <guy.litt@noaa.gov>
+:description: functions read in yaml schema and standardize metrics datasets
+:note: developed using python v3.12
 
 '''
-
+#  Changelog/contributions
+#     2024-07-02 Originally created, GL
+#     2024-07-09 added different file format/dir path options; add file format checkers, GL
+#     2024-08-13 update docstrings, GL
 
 import pandas as pd
 from pathlib import Path
@@ -22,6 +24,8 @@ import shutil
 from importlib import resources as impresources
 from fsds_proc import data
 from itertools import compress
+import pynhd as nhd
+
 
 def _proc_flatten_ls_of_dict_keys(config: dict, key: str) -> list:
     keys_cs = list()
@@ -79,14 +83,14 @@ def _proc_check_input_config(
     
     """
     Check input config file to ensure it contains the minimum expected 
-        categories
+    |    categories
 
     :raises ValueError: _description_
     :raises ValueError: _description_
     :raises ValueError: _description_
     :raises ValueError: _description_
 
-    seealso:: :func: `read_schm_ls_of_dict`
+    :seealso: :func: `read_schm_ls_of_dict`
     :TODO: add further checks after testing more datasets
 
     """
@@ -118,16 +122,17 @@ def _proc_check_input_config(
                         f" defined under 'formulation_metadata': {', '.join(req_file_io)}")
 
 def read_schm_ls_of_dict(schema_path: str | os.PathLike) -> pd.DataFrame:
-    """Read a dataset's schema file designed as a list of dicts
+    """Read a dataset's configuration file designed as a list of dicts
 
-    :param schema_path: _description_
+    :param schema_path: path to the user-created configuration file
     :type schema_path: str | os.PathLike
-    :return: he filepath to the schema
+    :return: the filepath to the schema
     :rtype: pd.DataFrame
-    note::
-    Changelog/contributions
-        2024-07-02 Originally created, GL
+
     """
+    # Changelog/contributions
+    #   2024-07-02 Originally created, GL
+
     # Load the YAML configuration file
     with open(schema_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -239,12 +244,11 @@ def _proc_check_input_df(df: pd.DataFrame,
         each row is 'gage_id'
     :rtype: pd.DataFrame
 
-    note::
-    Changelog/contributions
-        2024-07-09, originally created, GL
-        2024-07-11, bugfix in case index is already named 'gage_id', GL
-    """
 
+    """
+    # Changelog/contributions
+    #     2024-07-09, originally created, GL
+    #     2024-07-11, bugfix in case index is already named 'gage_id', GL
 
     gage_id = col_schema_df.loc[0, 'gage_id']
     metric_cols = col_schema_df.loc[0, 'metric_cols']
@@ -311,16 +315,18 @@ def proc_col_schema(df: pd.DataFrame,
     :param dir_save: Path for saving the standardized metric data file(s)
         and the metadata file.
     :type dir_save: str | os.PathLike
-    :raises ValueError: _description_
-    :return: _description_
+    :raises ValueError: when dir_save does not contain the expected directory
+        structure in cases when saving non-hierarchical file formats
+    :return: dataset of the standardized data/metadata
     :rtype: xr.Dataset
 
-    seealso:: :func:`read_schm_ls_of_dict`
+    :seealso: :func:`read_schm_ls_of_dict`
 
-    note:: 
-    Changelog/contributions
-        2024-07-02, originally created, GL
     """
+    # Changelog/contributions
+    #  2024-07-02, originally created, GL
+
+
     print(f"Standardizing datasets and writing to {dir_save}")
     # Based on the standardized column schema naming conventions
     dataset_name =  col_schema_df.loc[0, 'dataset_name']
@@ -415,3 +421,82 @@ def proc_col_schema(df: pd.DataFrame,
         ds.to_zarr(save_path_zarr)   # Re-write to directory
         print(f"Saved zarr files inside {save_path_zarr}")
     return ds # Returning not intended use case, but it's an option
+
+
+def check_fix_nwissite_gageids(df:pd.DataFrame, gage_id_col:str,
+                                featureSource:str = 'nwissite', 
+                                featureID:str='USGS-{gage_id}',
+                                replace_orig_gage_id_col:bool=True) -> pd.DataFrame:
+    """Checks whether USGS gage ID values corresponding to nwissite data follow expected format
+
+    :param df: DataFrame containing a column with nwissite gage id column for format checking
+    :type df: pd.DataFrame
+    :param gage_id_col: The column name of the gage id column, defaults to 'basin'
+    :type gage_id_col: str, optional
+    :param featureSource: The :mod:`pynhd` / :language:R: :mod:`nhdplusTools` featureSource describing the source of data, defaults to 'nwissite'
+    :type featureSource:  str, optional
+    :param featureID: The conversion string to get values inside `df[gage_id_col`] into the `featureSource`'s expected format,, defaults to 'USGS-{gage_id}'
+    :type featureID: str, optional
+    :param replace_orig_gage_id_col: Should the data inside `df[gage_id_col`] be replaced with the corrected values? If not, an added column named `'fix'` is added, defaults to True
+    :type replace_orig_gage_id_col: bool, optional
+    :return: The provided `df`, modified in cases when inappropriate `gage_id_col`'s data format found
+    :rtype: pd.DataFrame
+
+    """
+
+    ls_still_bad = list()
+    if featureSource == 'nwissite':
+        print(f"Checking {df.shape[0]} total USGS gage station IDs for appropriate nwissite format.")
+        print(f"This may take {round(df.shape[0]/60/3.2,2)} minutes for the first check")
+        nldi = nhd.NLDI()
+        ls_bad_ids = list()
+        for ix, row  in df.iterrows():
+            gid = row[gage_id_col]
+            try:
+                comid = nldi.navigate_byid(fsource=featureSource,fid= featureID.format(gage_id=gid),
+                                        navigation='upstreamMain',
+                                        source='flowlines',
+                                        distance=1 # the shortest distance
+                                        ).loc[0]['nhdplus_comid'] 
+            except: # Could not process this particular gid
+                ls_bad_ids.append(gid)                                                     
+        ls_prezero = ['0'+x for x in ls_bad_ids]
+
+        print(f"Checking whether prepending '0' fixes {len(ls_prezero)} total gage_ids that were not recognized during the first check")
+        print(f"This may take {round(len(ls_prezero)/60/3.2,2)} minutes for the second check.")
+        for prezero in ls_prezero:
+            try:
+                nldi.navigate_byid(fsource=featureSource,fid= featureID.format(gage_id=prezero),
+                                                navigation='upstreamMain',
+                                                source='flowlines',
+                                                distance=1 # the shortest distance
+                                                ).loc[0]['nhdplus_comid']
+            except:
+                ls_still_bad.append(prezero)
+                pass
+
+        
+        if len(ls_bad_ids) > 0:
+            print('Some improvements to nwissite IDs found')
+            conv_df = pd.DataFrame({'wrong_id': ls_bad_ids,
+                                    'good_id' : ls_prezero})
+            cmbo_df = df.merge(conv_df, left_on = gage_id_col, right_on ='wrong_id', how='left') 
+            cmbo_df['fix'] = cmbo_df['good_id']
+            cmbo_df.fillna({'fix':cmbo_df[gage_id_col]},inplace=True)
+            # In case some values are still bad, set the 'fix' column's bad vals to NA
+            cmbo_df.loc[cmbo_df[gage_id_col].isin(ls_still_bad),'fix'] = pd.NA
+
+            
+            cmbo_df.drop(columns = ['wrong_id','good_id'], inplace = True)
+
+            if replace_orig_gage_id_col:
+                print(f"Replacing original data from the '{gage_id_col}' column with corrected values.")
+                cmbo_df[gage_id_col] = cmbo_df['fix']
+                cmbo_df.drop(columns = ['fix'],inplace=True )
+            else:
+                print(f"Corrected values provided in the 'fix' column of the returned DataFrame.")
+
+            df=cmbo_df.copy()                
+            if len(ls_still_bad)>0:
+                warnings.warn("Some gage_id values still not recognized by USGS nwissite dataset.")
+    return df

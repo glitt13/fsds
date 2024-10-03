@@ -20,7 +20,7 @@ proc_attr_gageids(
 e.g. 'nwissite'}
 
 \item{featureID}{a glue-configured conversion of gage_id into a recognized
-featureID for \code{\link[nhdplusTools]{get_nldi_features}}. E.g. if gage_id is
+featureID for \code{\link[nhdplusTools]{get_nldi_features}}. E.g. if gage_id
 represents exactly what the nldi_feature$featureID should be, then
 featureID="{gage_id}". In other instances, conversions may be necessary,
 e.g. featureID="USGS-{gage_id}". When defining featureID, it's expected
@@ -30,7 +30,7 @@ that the term 'gage_id' is used as a variable in glue syntax to create featureID
 needed to acquire variables of interest. List objects include the following:
 \itemize{
 \item \code{paths} list of directories or paths used to acquire and save data These include the following:
-\item \code{paths$dir_hydfab} the local path to where hydrofabric data are saved
+\item \code{paths$dir_db_hydfab} the local path to where hydrofabric data are saved
 \item \code{path$dir_db_attrs} local path for saving catchment attributes as parquet files
 \item \code{path$s3_path_hydatl} the s3 location where hydroatlas data exist
 \item \code{path$dir_std_base} the location of user_data_std containing dataset that were standardized by \pkg{fsds_proc}.

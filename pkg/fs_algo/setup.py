@@ -7,18 +7,22 @@ from setuptools import setup, find_packages
 setup(
     include_package_data=True,
     package_data={'' : ['./data/*.yaml']},
-    name="fsds_proc",
-    version="0.1.3",
+    name="fs_algo",
+    version="0.0.1",
     author="Guy Litt, Ben Choat, Lauren Bolotin",
     author_email="guy.litt@noaa.gov",
-    description="A simple package for processing data in the formulation selection decision support tool",
+    description="A package for predicting hydrologic formulation metrics and signatures based on catchment attributes.",
     packages=find_packages(),
     install_requires=[ 
         'pandas',
         'pyyaml',
         'wheel',
         'xarray',
-        'zarr'
+        'zarr',
+        'scikit-learn',
+        'pynhd',
+        'dask',
+        'dask_expr'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

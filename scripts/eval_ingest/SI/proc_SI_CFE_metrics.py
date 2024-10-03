@@ -34,7 +34,6 @@ if __name__ == "__main__":
     col_schema_df = read_schm_ls_of_dict(schema_path = path_config)
 
     # Extract path and format the home_dir in case it was defined in file path
-    path_camels = col_schema_df['path_camels'].loc[0].format(home_dir = str(Path.home()))
     path_data = col_schema_df['path_data'].loc[0].format(home_dir = str(Path.home()))
     dir_save = col_schema_df['dir_save'].loc[0].format(home_dir = str(Path.home()))
 
