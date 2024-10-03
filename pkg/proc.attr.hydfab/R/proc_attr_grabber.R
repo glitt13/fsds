@@ -682,6 +682,7 @@ check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TR
   #'        attributes a user is requesting
   #' @param vars a list specifying which attributes a user is requesting, in lieu
   #'        of a list coming from a .yaml configuration file
+  #' @export
 
   # Read in the menu of attributes available through FSDS
   dir_base <- system.file("extdata",package="proc.attr.hydfab")
