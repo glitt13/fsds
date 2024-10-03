@@ -4,6 +4,7 @@
 
 # Changelog / Contributions
 #   2024-07-24 Originally created, GL
+#   2024-10-03 Contributed to, LB
 
 # unloadNamespace("proc.attr.hydfab")
 suppressPackageStartupMessages(library(proc.attr.hydfab,quietly=TRUE))
@@ -112,22 +113,22 @@ testthat::test_that('proc_attr_gageids',{
 testthat::test_that('check_attr_selection', {
   ## Using a config yaml
   # Test for requesting something NOT in the attr menu
-  attr_cfg_path <- paste0(dir_base, '/xssa_attr_config_missing_vars.yaml')
-  expect_equal(check_attr_selection(attr_cfg_path), c("TOT_TWi", "TOT_POPDENS91"))
+  attr_cfg_path_missing <- paste0(dir_base, '/xssa_attr_config_missing_vars.yaml')
+  expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path_missing), c("TOT_TWi", "TOT_POPDENS91"))
   
   # Test for only requesting vars that ARE in the attr menu
   attr_cfg_path <- paste0(dir_base, '/xssa_attr_config_all_vars_avail.yaml')
-  expect_equal(check_attr_selection(attr_cfg_path), NA)
+  expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path), NA)
   
   
   ## Using a list of variables of interest instead of a config yaml
   # Test for requesting something NOT in the attr menu
   vars <- c('TOT_TWi', 'TOT_PRSNOW', 'TOT_EWT')
-  expect_equal(check_attr_selection(vars = vars), 'TOT_TWi')
+  expect_equal(proc.attr.hydfab::check_attr_selection(vars = vars), 'TOT_TWi')
   
   # Test for only requesting vars that ARE in the attr menu
   vars <- c('TOT_TWI', 'TOT_PRSNOW', 'TOT_EWT')
-  expect_equal(check_attr_selection(vars = vars), NA)
+  expect_equal(proc.attr.hydfab::check_attr_selection(vars = vars), NA)
 })
 
 
