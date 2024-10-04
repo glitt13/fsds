@@ -273,7 +273,7 @@ testthat::test_that("proc_attr_usgs_nhd", {
 
 testthat::test_that("proc_attr_hf not a comid",{
  testthat::expect_error(proc.attr.hydfab::proc_attr_hf(comid="13Notacomid14", dir_db_hydfab,
-                                                       custom_name="{lyrs}_",ext = 'gpkg',
+                                                       custom_name="{lyrs}_",fileext = 'gpkg',
                                                        lyrs=c('divides','network')[2],
                                                        hf_cat_sel=TRUE, overwrite=FALSE))
 })
