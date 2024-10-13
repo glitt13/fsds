@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 setup(
     include_package_data=True,
     package_data={'' : ['./data/*.yaml']},
-    name="fsds_proc",
+    name="fs_proc",
     version="0.1.4",
     author="Guy Litt, Ben Choat, Lauren Bolotin",
     author_email="guy.litt@noaa.gov",
