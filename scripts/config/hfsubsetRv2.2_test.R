@@ -17,7 +17,7 @@ weight_attrs_by_area <- function(df, hfab_vars, area_col = 'areasqkm'){
   #' @param df data.frame class. Attribute dataframe
   #' @param hfab_vars character class. The column names of attributes inside \code{df}
   #' @param area_col character class. The area column name inside \code{df}
-  #' @return single-row data.frame of area-averaged \code{df}
+  #' @return single-row data.frame of area-averaged attribute \code{df}
 
   tot_area <- base::sum(df[[area_col]])
   if(any(is.na(df))){ # Determine area-weighted mean, ignoring NA
@@ -60,7 +60,7 @@ proc_attr_hfab <- function(comid,dir_save= "~/", hfab_vars="all",
   #'  \code{hfsubsetR::get_subset()}. Default 'divide-attributes' corresponds to
   #'  hydrofabric v2.2. Previous versions used 'model-attributes'
   #' @param div_name The list name for the divides data as retrieved from
-  #'  \code{hfsubsetR::get_subset()}. Default 'divides' corresponds.
+  #'  \code{hfsubsetR::get_subset()}. Default 'divides'.
   #' @param hf_ver Hydrofabric version. Default "2.2"
   #' @param id_col The identifier column for each divide inside the divides and
   #' divide-attributes layers. Default 'divide_id'
@@ -197,6 +197,38 @@ for(comid in comids){
     attr_dat[[comid]] <- rslt
   }
 }
+
+
+
+# Review all attribute data
+check_empty_func <- function(x) {
+  if (length(x) > 1) {
+    return(x)
+  }
+}
+sub_ls_attrs <- lapply(attr_dat, check_empty_func)
+
+dt_all_attrs <- data.table::rbindlist(sub_ls_attrs)
+
+summary(dt_all_attrs)
+
+# TODO review all areas:
+areas_all_ls <- list()
+for(comid in comids){
+  subset_dat <- hfsubsetR::get_subset(comid = comid,
+                        lyrs = 'divides',
+                        gpkg   =source,
+                        hf_version =  hf_ver,
+                        type    = type,
+                        domain  =domain)
+  areas_all_ls[[comid]] <- sum(subset_dat$divides$areasqkm)
+
+}
+library(ggplot2)
+area_data <- unlist(unname(areas_all_ls)) %>% as.data.frame()
+ggplot2::ggplot(area_data) +
+  ggplot2::geom_histogram()
+
 
 
 # TODO add divide id and attr areal coverages to final attribute dataset
