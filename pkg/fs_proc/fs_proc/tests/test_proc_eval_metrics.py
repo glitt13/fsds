@@ -1,8 +1,8 @@
 '''
-Unit tests for the fsds_proc package
+Unit tests for the fs_proc package
 
 example::
-> cd /path/to/fsds_proc/fsds_proc/tests/
+> cd /path/to/fs_proc/fs_proc/tests/
 > python -m unittest test_proc_eval_metrics.py
 or if interested in unit testing coverage:
 > python -m coverage run -m unittest
@@ -22,11 +22,11 @@ import pandas as pd
 import yaml
 import tempfile
 import xarray as xr
-from fsds_proc.proc_eval_metrics import read_schm_ls_of_dict, proc_col_schema, _proc_check_input_config, _proc_flatten_ls_of_dict_keys, _proc_check_input_df, _proc_check_std_fsds_ids
+from fs_proc.proc_eval_metrics import read_schm_ls_of_dict, proc_col_schema, _proc_check_input_config, _proc_flatten_ls_of_dict_keys, _proc_check_input_df, _proc_check_std_fs_ids
 import numpy as np
 from unittest.mock import patch
 
-# Define the unit test directory for fsds_proc
+# Define the unit test directory for fs_proc
 parent_dir_test = Path(__file__).parent #TODO should change this 
 print(f'Running unit test from {parent_dir_test}')
 # Define the unit test saving directory as a temp dir
@@ -122,14 +122,14 @@ class TestProcCheckInputDf(unittest.TestCase):
         with self.assertWarns(Warning):
             _proc_check_input_df(bad_test_df, exp_config_df)
 
-class TestProcCheckStdFsdsIds(unittest.TestCase):
+class TestProcCheckStdFsIds(unittest.TestCase):
     def test_notavar_error(self):
         self.assertRaises(ValueError,
-                          _proc_check_std_fsds_ids,vars=['notavar' ], category = 'metric')
+                          _proc_check_std_fs_ids,vars=['notavar' ], category = 'metric')
     
     @patch('builtins.print')
     def test_atomic_var(self,mock_print):
-        _proc_check_std_fsds_ids(vars= 'NSE', category = 'metric')
+        _proc_check_std_fs_ids(vars= 'NSE', category = 'metric')
         mock_print.assert_called_with('The metric mappings from the dataset schema match expected format.')
     
 class TestProcCheckInputConfig(unittest.TestCase):

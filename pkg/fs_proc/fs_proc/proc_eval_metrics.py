@@ -39,7 +39,7 @@ def _read_std_config():
     :return: yaml configuration file mappings as a dict of lists of dicts
     :rtype: dict
     """
-    catg_file = impresources.files(data) / 'fsds_categories.yaml'
+    catg_file = impresources.files(data) / 'fs_categories.yaml'
     with catg_file.open("rt") as f:
         std_config = yaml.safe_load(f)
     return std_config
@@ -187,7 +187,7 @@ def _save_dir_struct(dir_save: str | os.PathLike,
 def _proc_check_std_fs_ids(vars: list, category=['metric','target_var'][0]):
     """
     Run check to ensure that variables are listed in the standardized 
-        fsds_categories.yaml
+        fs_categories.yaml
 
     :param vars: user-defined variable listing of the anticipated mapped
         variables (e.g. ['NSE','RMSE'])
