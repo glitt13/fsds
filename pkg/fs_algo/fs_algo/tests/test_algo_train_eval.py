@@ -2,6 +2,9 @@
 Unit testing for AlgoTrainEval class in the fs_algo package
 
 example
+> cd /path/to/fs_algo/fs_algo/tests/
+> python -m unittest test_algo_train_eval.py
+
 > coverage run -m unittest test_algo_train_eval.py  
 > coverage report
 > coverage html 
@@ -571,7 +574,11 @@ class TestAlgoTrainEvalBasic(unittest.TestCase):
             'rf': [{'n_estimators': [10,30,40]}],
             'mlp': [{'hidden_layer_sizes': (50,)}]
         }
-        self.dir_out_alg_ds = '/tmp'
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_dir = Path(tmpdir)
+
+        self.dir_out_alg_ds = temp_dir
         self.dataset_id = 'test_ds'
         self.metric = 'target'
         self.test_size = 0.2
