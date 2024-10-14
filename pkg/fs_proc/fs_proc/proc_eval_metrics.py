@@ -301,7 +301,8 @@ def _proc_check_input_df(df: pd.DataFrame,
 
 def proc_col_schema(df: pd.DataFrame, 
                     col_schema_df: pd.DataFrame, 
-                    dir_save: str | os.PathLike) -> xr.Dataset:
+                    dir_save: str | os.PathLike, 
+                    check_nwis: bool = False) -> xr.Dataset:
     """
     Process model evaluation metrics into individual standardized files 
         and save a standardized metadata file.
@@ -310,11 +311,16 @@ def proc_col_schema(df: pd.DataFrame,
         minimum catchment ID and evaluation metrics
     :type df: pd.DataFrame
     :param col_schema_df: The column schema naming convention ingested from 
-        the yaml file corresponding to the dataset. C
+        the yaml file corresponding to the dataset. To create the schema df,
+        refer to :func:`read_schm_ls_of_dict`
     :type col_schema_df: pd.DataFrame
     :param dir_save: Path for saving the standardized metric data file(s)
         and the metadata file.
     :type dir_save: str | os.PathLike
+    :param check_nwis: Set to True if NWIS gage ids are the standard location 
+        identifier in this dataset. If so, this checks whether NWIS gage ids
+        are missing leading zeros and provides a correction if needed.
+    :type check_nwis: bool
     :raises ValueError: when dir_save does not contain the expected directory
         structure in cases when saving non-hierarchical file formats
     :return: dataset of the standardized data/metadata
@@ -370,6 +376,7 @@ def proc_col_schema(df: pd.DataFrame,
 
     # Run format checker/df renamer on input data based on config file's entries:
     df = _proc_check_input_df(df,col_schema_df)
+
 
     # Convert dataframe to the xarray dataset and add metadata:
     ds = df.to_xarray()
