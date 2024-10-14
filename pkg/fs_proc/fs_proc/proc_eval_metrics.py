@@ -318,8 +318,9 @@ def proc_col_schema(df: pd.DataFrame,
         and the metadata file.
     :type dir_save: str | os.PathLike
     :param check_nwis: Set to True if NWIS gage ids are the standard location 
-        identifier in this dataset. If so, this checks whether NWIS gage ids
-        are missing leading zeros and provides a correction if needed.
+        identifier in this dataset. If True, this checks whether NWIS gage ids
+        are missing leading zeros and provides a correction if needed. Also
+        expects `col_schema_df['featureSource'] == 'nwissite'`.
     :type check_nwis: bool
     :raises ValueError: when dir_save does not contain the expected directory
         structure in cases when saving non-hierarchical file formats
@@ -377,6 +378,30 @@ def proc_col_schema(df: pd.DataFrame,
     # Run format checker/df renamer on input data based on config file's entries:
     df = _proc_check_input_df(df,col_schema_df)
 
+    # Run format checker on nwissite gage ids for missing leading zeros
+    if check_nwis and col_schema_df['featureSource'].values[0] == 'nwissite':
+        # Run check on NWIS gage IDS - make sure leading zeros exist where needed.
+        df_new = check_fix_nwissite_gageids(
+            df=df, 
+            gage_id_col = col_schema_df['gage_id'].values[0],
+            featureSource = col_schema_df['featureSource'].values[0], 
+            featureID=col_schema_df['featureID'].values[0],
+            replace_orig_gage_id_col=True)
+        
+        check_equal_df = pd.testing.assert_frame_equal(df_new,df)
+        if not check_equal_df == None:
+            warnings.warn(f"The {col_schema_df['gage_id'].values[0]} column \ 
+                          in the input dataset has nwissite gage ID values\
+                          missing leading zeros. Auto-corrected gage ids may not \
+                          have caught all issues. Consider inspecting input data.")
+            
+            df = df_new.copy()
+    elif col_schema_df['featureSource'].values[0] == 'nwissite':
+        print(f"The input dataset uses nwissite gage ids. Consider setting\
+               check_nwis=True to run a check on whether the \
+              {col_schema_df['gage_id'].values[0]} column \ 
+              in the dataset contains appropriately formatted gage ids, \
+              specifically that leading zeros haven't been inadvertently removed.")
 
     # Convert dataframe to the xarray dataset and add metadata:
     ds = df.to_xarray()
