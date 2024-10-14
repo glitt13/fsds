@@ -388,7 +388,7 @@ def proc_col_schema(df: pd.DataFrame,
             featureID=col_schema_df['featureID'].values[0],
             replace_orig_gage_id_col=True)
         
-        check_equal_df = pd.testing.assert_frame_equal(df_new,df)
+        check_equal_df = df_new.equals(df)
         if not check_equal_df == None:
             warn_str_diff = (f"The {col_schema_df['gage_id'].values[0]} column" 
                           f" in the input dataset has nwissite gage ID values"
