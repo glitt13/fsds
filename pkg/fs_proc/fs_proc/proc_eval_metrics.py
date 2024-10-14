@@ -390,18 +390,20 @@ def proc_col_schema(df: pd.DataFrame,
         
         check_equal_df = pd.testing.assert_frame_equal(df_new,df)
         if not check_equal_df == None:
-            warnings.warn(f"The {col_schema_df['gage_id'].values[0]} column \ 
-                          in the input dataset has nwissite gage ID values\
-                          missing leading zeros. Auto-corrected gage ids may not \
-                          have caught all issues. Consider inspecting input data.")
+            warn_str_diff = (f"The {col_schema_df['gage_id'].values[0]} column" 
+                          f" in the input dataset has nwissite gage ID values"
+                          f"missing leading zeros. Auto-corrected gage ids may not"
+                          f" have caught all issues. Consider inspecting input data.")
+            warnings.warn(warn_str_diff
+                         )
             
             df = df_new.copy()
     elif col_schema_df['featureSource'].values[0] == 'nwissite':
         print(f"The input dataset uses nwissite gage ids. Consider setting\
-               check_nwis=True to run a check on whether the \
-              {col_schema_df['gage_id'].values[0]} column \ 
-              in the dataset contains appropriately formatted gage ids, \
-              specifically that leading zeros haven't been inadvertently removed.")
+              \ncheck_nwis=True to run a check on whether the "
+              f"{col_schema_df['gage_id'].values[0]} column "
+              f"\nin the dataset contains appropriately formatted gage ids, \
+              \nspecifically that leading zeros haven't been inadvertently removed.")
 
     # Convert dataframe to the xarray dataset and add metadata:
     ds = df.to_xarray()
