@@ -3,7 +3,7 @@ Unit tests for the fs_proc package
 
 example::
 > cd /path/to/fs_proc/fs_proc/tests/
-> python -m unittest test_proc_eval_metrics.py
+> python -m unittest test_proc_eval
 or if interested in unit testing coverage:
 > python -m coverage run -m unittest
 > python -m coverage report 
@@ -13,6 +13,7 @@ or if interested in unit testing coverage:
 notes::
 Changelog/contributions
     2024-07-11 Originally created, GL
+    2024-10-14 Add nwissite testing, GL
 '''
 
 
@@ -20,7 +21,6 @@ import unittest
 from pathlib import Path
 import pandas as pd
 import yaml
-import tempfile
 import xarray as xr
 from fs_proc.proc_eval_metrics import read_schm_ls_of_dict, proc_col_schema,\
       _proc_check_input_config, _proc_flatten_ls_of_dict_keys, \
