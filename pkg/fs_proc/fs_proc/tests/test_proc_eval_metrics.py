@@ -22,9 +22,14 @@ import pandas as pd
 import yaml
 import tempfile
 import xarray as xr
-from fs_proc.proc_eval_metrics import read_schm_ls_of_dict, proc_col_schema, _proc_check_input_config, _proc_flatten_ls_of_dict_keys, _proc_check_input_df, _proc_check_std_fs_ids
+from fs_proc.proc_eval_metrics import read_schm_ls_of_dict, proc_col_schema,\
+      _proc_check_input_config, _proc_flatten_ls_of_dict_keys, \
+      _proc_check_input_df, _proc_check_std_fs_ids, check_fix_nwissite_gageids
 import numpy as np
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+import pynhd as nhd
+import warnings
+import tempfile
 
 # Define the unit test directory for fs_proc
 parent_dir_test = Path(__file__).parent #TODO should change this 
@@ -163,5 +168,139 @@ class TestProcFlattenLsOfDictKeys(unittest.TestCase):
         self.assertTrue(len(self.ls_fio) == 5)
 
 
+
+class TestProcColSchemaNwisCheck(unittest.TestCase):
+    global exp_config_df
+    global raw_test_df
+    global test_df
+
+    @patch('fs_proc.proc_eval_metrics.check_fix_nwissite_gageids')
+    @patch('pandas.testing.assert_frame_equal')
+    def test_check_nwis_gage_id_fix(self, mock_assert_frame_equal, mock_check_fix_nwissite_gageids):
+        # Set up mock data
+        df = raw_test_df.copy().iloc[0:1]
+
+        col_schema_df = exp_config_df.copy()
+        col_schema_df.loc[0,'featureSource'] = 'nwissite' # featureSource that triggers the check
+        col_schema_df.loc[0,'featureID'] = 'USGS-{gage_id}'
+        
+        mock_fixed_df = test_df.copy().iloc[0:1]
+        
+        mock_check_fix_nwissite_gageids.return_value = mock_fixed_df
+        mock_assert_frame_equal.side_effect = AssertionError  # Simulate dataframe mismatch
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_dir = Path(tmpdir)
+
+        # Capture warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            
+            # Call the function
+            result_ds = proc_col_schema(df = df,
+                                        col_schema_df=col_schema_df,
+                                          dir_save=temp_dir,
+                                          check_nwis=True)
+
+
+            # Ensure the warning was raised due to differences in dataframes
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[-1].category, UserWarning))
+            self.assertIn("Auto-corrected gage ids may not have caught all issues", str(w[-1].message))
+            
+            # Ensure the DataFrame has been updated with corrected gage IDs
+            self.assertEqual(result_ds.gage_id.values.tolist(), [1013500])
+
+    @patch('builtins.print')
+    def test_check_warn_nwissite(self,
+                                 mock_print):
+        # Set up mock data
+        df = raw_test_df.copy().iloc[0:1]
+
+        col_schema_df = exp_config_df.copy()
+        col_schema_df.loc[0,'featureSource'] = 'nwissite' # featureSource that triggers the check
+        col_schema_df.loc[0,'featureID'] = 'USGS-{gage_id}'
+        
+        mock_fixed_df = test_df.copy().iloc[0:1]
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+                    temp_dir = Path(tmpdir)
+
+        # Capture warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            
+            # Call the function
+            result_ds = proc_col_schema(df = df,
+                                        col_schema_df=col_schema_df,
+                                        dir_save=temp_dir,
+                                        check_nwis=False)
+            
+            self.assertTrue(mock_print.called)
+            # Check that one of the print calls contains the expected substring
+            self.assertTrue(any("check_nwis=True to run a check on whether" in call[0][0] for call in mock_print.call_args_list))
+        
+
+
+class TestCheckFixNwissiteGageIds(unittest.TestCase):
+
+    @patch('pynhd.NLDI.navigate_byid')
+    def test_valid_gage_ids(self, mock_navigate_byid):
+        # Mock the API call returning a valid comid
+        mock_navigate_byid.return_value = pd.DataFrame({'nhdplus_comid': [12345]})
+        
+        # Test data
+        df = pd.DataFrame({'basin_id': ['12345678', '87654321']})
+        
+        # Run function
+        result_df = check_fix_nwissite_gageids(df, gage_id_col='basin_id')
+        
+        # Assertions
+        self.assertEqual(result_df.shape[0], 2)  # Ensure no rows are dropped
+        self.assertNotIn('fix', result_df.columns)  # 'fix' column should not exist when replace is True
+        self.assertListEqual(result_df['basin_id'].tolist(), ['12345678', '87654321'])  # IDs should remain the same
+
+    @patch('pynhd.NLDI.navigate_byid')
+    def test_invalid_gage_ids_prepended_zero(self, mock_navigate_byid):
+        # First call returns no result (indicating bad ID), second call with '0' prepended returns a valid comid
+        mock_navigate_byid.side_effect = [pd.DataFrame(), pd.DataFrame({'nhdplus_comid': [12345]})]
+        
+        # Test data
+        df = pd.DataFrame({'basin_id': ['12345678']})
+        
+        # Run function
+        result_df = check_fix_nwissite_gageids(df, gage_id_col='basin_id', replace_orig_gage_id_col=True)
+        
+        # Assertions
+        self.assertEqual(result_df.shape[0], 1)
+        self.assertEqual(result_df['basin_id'].iloc[0], '012345678')  # Ensure the '0' has been prepended
+
+    @patch('pynhd.NLDI.navigate_byid')
+    def test_invalid_gage_ids_still_bad(self, mock_navigate_byid):
+        # Both calls return no result (indicating permanently bad ID)
+        mock_navigate_byid.side_effect = [pd.DataFrame(), pd.DataFrame()]
+        
+        # Test data
+        df = pd.DataFrame({'basin_id': ['12345678']})
+        
+        # Run function
+        result_df = check_fix_nwissite_gageids(df, gage_id_col='basin_id', replace_orig_gage_id_col=False)
+        
+        # Assertions
+        self.assertEqual(result_df.shape[0], 1)
+        self.assertIn('fix', result_df.columns)  # 'fix' column should exist when replace is False
+        print(result_df['fix'].iloc[0])
+        self.assertTrue(result_df['fix'].iloc[0]=='012345678')  # Ensure still bad ID results prepended 0 in 'fix' column
+
+    @patch('pynhd.NLDI.navigate_byid')
+    def test_empty_dataframe(self, mock_navigate_byid):
+        # Empty DataFrame test
+        df = pd.DataFrame({'basin_id': []})
+        
+        # Run function
+        result_df = check_fix_nwissite_gageids(df, gage_id_col='basin_id')
+        
+        # Assertions
+        self.assertTrue(result_df.empty)  # Should return an empty DataFrame
 if __name__ == '__main__':
     unittest.main()

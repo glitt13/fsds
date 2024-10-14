@@ -20,7 +20,7 @@ if __name__ == "__main__":
     parser.add_argument('path_config', type=str, help='Path to the YAML configuration file')
     args = parser.parse_args()
     # The path to the configuration
-    path_config = args.path_config # '/Users/guylitt/git/fsds/scripts/eval_ingest/xssa/xssa_config.yaml' 
+    path_config = args.path_config # '~/git/formulation-selector/scripts/eval_ingest/xssa/xssa_config.yaml' 
 
     if not Path(path_config).exists():
         raise ValueError("The provided path to the configuration file does not exist: {path_config}")
