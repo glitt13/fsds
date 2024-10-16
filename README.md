@@ -57,7 +57,7 @@ You may consider creating a new virtual environment for employing `formulation-s
 ### TLDR
  - Install `fs_proc` package
    `pip install /path/to/pkg/fs_proc/fs_proc/.`
- - Build a yaml config file `/sripts/eval_metrics/name_of_dataset_here/name_of_dataset_schema.yaml` (refer to this template)[https://github.com/glitt13/fsds/blob/std_catg/scripts/eval_ingest/xssa/xssa_schema.yaml)
+ - Build a yaml config file `/sripts/eval_metrics/name_of_dataset_here/name_of_dataset_schema.yaml` [refer to this template](https://github.com/NOAA-OWP/formulation-selector/blob/main/scripts/eval_ingest/xssa/xssa_schema.yaml)
  - Create a script that reads in the data and runs the standardization processing. [Example script here](https://github.com/NOAA-OWP/formulation-selector/blob/main/scripts/eval_ingest/xssa/proc_xssa_metrics.py)
  - Then run the following:
   ```
