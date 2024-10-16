@@ -1,15 +1,20 @@
 
 ----
 
-# Formulation Selection Decision Support (FSDS)
+# Regionalization and Formulation Testing and Selection (RaFTS)
 
 **Description**:  
-The formulation-selection decision support tool (FSDS) is under development.
+The formulation-selector tool (RaFTS) is under development. For more information, see the [Wiki](https://github.com/NOAA-OWP/formulation-selector/wiki). 
+
+As NOAA OWP builds the model-agnostic NextGen framework, the hydrologic modeling community will need to know how to optimally select model formulations and estimate parameter values across ungauged catchments. This problem becomes intractable when considering the unique combinations of current and future model formulations combined with the innumerable possible parameter combinations across the continent. To simplify the model selection problem, we apply an analytical tool that predicts hydrologic formulation performance (Bolotin et al., 2022, Liu et al., 2022) using community-generated data. The regionalization and formulation testing and selection (RaFTS) tool readily predicts how models might perform across catchments based on catchment attributes. This decision support tool is designed such that as the hydrologic modeling community generates more results, better decisions can be made on where formulations would be best suited.
 
 As NOAA OWP builds the model-agnostic NextGen framework, the hydrologic modeling community will need to know how to optimally select model formulations and estimate parameter values across ungauged catchments. This problem becomes intractable when considering the unique combinations of current and future model formulations combined with the innumerable possible parameter combinations across the continent. To simplify the model selection problem, we apply an analytical tool that predicts hydrologic formulation performance (Bolotin et al., 2022, Liu et al., 2022) using community-generated data. The formulation selection decision support (FSDS) tool readily predicts how models might perform across catchments based on catchment attributes. This decision support tool is designed such that as the hydrologic modeling community generates more results, better decisions can be made on where formulations would be best suited.
 
-Other things to include:
+**Technology stack**: 
+  - **Python:** The features of the formulation-selector that ingest model results and catchment attributes to predict model performances based on catchment attributes is written in Python. 
+  - **R:** The features of the formulation-selector that acquire catchment attributes that feed into the model prediction algorithm (which, as noted above, is in Python) are written in R to promote compatibility with the [NOAA-OWP/hydrofabric](https://github.com/NOAA-OWP/hydrofabric). 
 
+**Status**:  Preliminary development. [CHANGELOG](CHANGELOG.md).
   - **Technology stack**: python. The formulation-selection decision support tool is intended to be a standalone analysis, though integration with pre-existing formulation evaluation metrics tools will eventually occur.
   - **Status**:  Preliminary development. [CHANGELOG](CHANGELOG.md).
   - **Links to production or demo instances**
@@ -21,12 +26,30 @@ N/A
 
 ## Dependencies
 
-Describe any dependencies that must be installed for this software to work.
-This includes programming languages, databases or other storage mechanisms, build tools, frameworks, and so forth.
-If specific versions of other software are required, or known not to work, call that out.
+#### R Packages
+#### Python Packages
+Thus far, `formulation-selector` has been developed in and tested with Python versions 3.11 and 3.12, so these are currently the recommended versions. 
 
+You may consider creating a new virtual environment for employing `formulation-selector` with the following packages:  
+
+- [pynhd](https://github.com/hyriver/pynhd)
+- dask
+- joblib
+- netcdf4
+- numpy
+- pandas
+- pyyaml
+- scikit_learn
+- setuptools
+- xarray
+
+
+## Installation - `fsds_proc` Python package
+
+### TL;DR
 - [NOAA-OWP/hydrofabric](https://github.com/NOAA-OWP/hydrofabric)
-  - Note that the arrow package needs `arrow::arrow_with_s3() == TRUE`. If `FALSE`, consider downloading arrow via [apache's r-universe](https://apache.r-universe.dev/arrow)
+  - Note that the arrow package needs `arro
+  w::arrow_with_s3() == TRUE`. If `FALSE`, consider downloading arrow via [apache's r-universe](https://apache.r-universe.dev/arrow)
   - Steps to install hydrofabric: Refer to wiki
 - [USGS nhdplusTools](https://github.com/doi-usgs/nhdplusTools/)
 - [pynhd](https://github.com/hyriver/pynhd)
@@ -115,11 +138,11 @@ important pieces, etc.
 
 General instructions on _how_ to contribute should be stated with a link to [CONTRIBUTING](CONTRIBUTING.md).
 
-# Attribute grabber
+# Attribute Grabber
 **Description**:  
 Attributes from non-standardized datasets may need to be acquired for FSDS modeling and prediction. The R package `proc.attr.hydfab` performs the attribute grabbing.
 
-## Installation - `proc.attr.hydfab`
+## Installation - `proc.attr.hydfab` R package
 Run [`flow.install.proc.attr.hydfab.R`](https://github.com/glitt13/fsds/blob/main/pkg/proc.attr.hydfab/flow/flow.install.proc.attr.hydfab.R) to install the package. Note that a user may need to modify the section that creates the `fsds_dir` for their custom path to this repo's directory.
 
 ## Usage - `proc.attr.hydfab`
