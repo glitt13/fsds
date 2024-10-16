@@ -13,6 +13,7 @@ library(hydrofabric)
 library(hfsubsetR)
 library(data.table)
 library(pkgcond)
+library(yaml)
 
 retrieve_attr_exst <- function(comids, vars, dir_db_attrs, bucket_conn=NA){
   #' @title Grab previously-aggregated attributes from locations of interest
@@ -668,3 +669,82 @@ grab_attrs_datasets_fsds_wrap <- function(Retr_Params,lyrs="network",overwrite=F
 
   return(ls_comids_all)
 }
+
+check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TRUE){
+  #' @title Check that attributes selected by user are available
+  #' @author Lauren Bolotin \email{lauren.bolotin@noaa.gov }
+  #' @description Sees if the attributes requested by a user matches with the 
+  #'  attributes supported by the package, listed in the attribute menu. 
+  #'  Returns list of
+  #'   - missing_vars: a list of the requested variables that were not found
+  #'        in the attribute menu as specified. 
+  #' @param attr_cfg_path a path to a .yaml configuration file specifying which 
+  #'        attributes a user is requesting
+  #' @param vars a list specifying which attributes a user is requesting, in lieu
+  #'        of a list coming from a .yaml configuration file
+  #' @export
+
+  # Read in the menu of attributes available through FSDS
+  dir_base <- system.file("extdata",package="proc.attr.hydfab")
+  attr_menu <- base::paste0(dir_base, '/fsds_attr_menu.yaml')
+  attr_menu <- yaml::read_yaml(attr_menu)
+  dataset_indices <- seq(1, base::length(attr_menu))
+  
+  if(!is.null(attr_cfg_path)){
+
+    # Read in the user defined config of attributes of interest
+    # attr_cfg_path <- paste0(dir_base, '/xssa_attr_config_all_vars_avail.yaml')
+    attr_cfg <- yaml::read_yaml(attr_cfg_path)
+    attr_cfg_sel <- attr_cfg[['attr_select']] # select the section for attributes
+    attr_cfg_sel <- attr_cfg_sel[-1] # remove the s3 path to hydroatlas vars
+    vars_sel <- attr_cfg_sel %>% base::unlist() %>% base::unname()
+
+    print_query <- function(dataset_index, verbose = verbose){
+      dataset <- attr_cfg_sel[[dataset_index]] %>% names()
+      vars <- attr_cfg_sel[[dataset_index]] %>% unlist() %>% unname()
+      if (!is.null(vars)){
+        vars <- paste0(vars, collapse = ', ')
+        msg <- glue::glue('Checking the ', dataset, 
+                          ' dataset for the following requested attributes: \n', 
+                          vars)
+        message(msg)
+      }
+      
+    }
+    if(verbose){
+      lapply(dataset_indices, print_query)
+    }
+    
+  } else if(!is.null(vars)){
+    # vars <- c("TOT_twi","TOT_PRSNOW","TOT_POPDENS90","TOT_EWT","TOT_RECHG","TOT_BFI")
+    vars_sel <- vars
+  } else {
+    stop("Must provide attr_cfg_path or vars as arguments to check_attr_selection")
+  }
+  
+  
+  vars_menu <- NA
+  # Compile the attribute menu into one list of variables
+  create_menu_list <- function(dataset_index){
+      dataset_vars <- attr_menu[[dataset_index]] %>% base::unlist() %>% base::names()
+      vars_menu <<- c(vars_menu, dataset_vars)
+    }
+  lapply(dataset_indices, create_menu_list)
+
+  
+  # Warn the user of any requested attrs that are missing
+  missing_vars <- vars_sel[base::which(!vars_sel %in% vars_menu)] 
+  missing_vars_list <- base::paste0(missing_vars, collapse=', ')
+
+  # Only print a warning if the user requested unavailable attrs:
+  if (base::length(missing_vars) > 0){
+    # Tell the user they asked for something that's not available
+    warn_msg <- glue::glue('The following attributes, as specified, were not found in the attribute menu:\n',
+                 missing_vars_list, '\nPlease check spelling, capitalization, etc. and revise the *_attr_config.yaml', sep = ',')
+    warning(warn_msg)
+  }else{
+    missing_vars <- NA
+  }
+  return(missing_vars)
+}
+
