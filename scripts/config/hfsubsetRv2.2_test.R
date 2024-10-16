@@ -6,7 +6,7 @@ library(tidyselect)
 #comid <- c("6716129","7388043")
 source <- "~/noaa/hydrofabric/v2.2/ls_conus.gpkg"
 hf_ver <- '2.2'
-outfile <- glue::glue('~/noaa/hydrofabric/test/{comid}.gpkg')
+#outfile <- glue::glue('~/noaa/hydrofabric/test/{comid}.gpkg')
 dir_save <- '~/noaa/hydrofabric/test/'
 hfab_vars <- "all"
 
@@ -18,7 +18,7 @@ weight_attrs_by_area <- function(df, hfab_vars, area_col = 'areasqkm'){
   #' @param hfab_vars character class. The column names of attributes inside \code{df}
   #' @param area_col character class. The area column name inside \code{df}
   #' @return single-row data.frame of area-averaged attribute \code{df}
-
+  #' @export
   tot_area <- base::sum(df[[area_col]])
   if(any(is.na(df))){ # Determine area-weighted mean, ignoring NA
     ls_wt_area <- list()
@@ -229,9 +229,13 @@ area_data <- unlist(unname(areas_all_ls)) %>% as.data.frame()
 ggplot2::ggplot(area_data) +
   ggplot2::geom_histogram()
 
+###### LOOKUP COMID LOCATION
+library(nhdplusTools)
 
-
-# TODO add divide id and attr areal coverages to final attribute dataset
+rslt <- nhdplusTools::get_nhdplus(comid="23864616",realization = 'outlet')
+rslt$geometry
+# Paste the coordinates into here: https://apps.nationalmap.gov/viewer/
+  # TODO add divide id and attr areal coverages to final attribute dataset
 
 
 #
