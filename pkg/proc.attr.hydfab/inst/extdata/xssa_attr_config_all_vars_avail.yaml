@@ -28,8 +28,8 @@ hydfab_config: # Required section describing hydrofabric connection details and 
  - 's3_bucket' : 'lynker-spatial' # Required. s3 bucket containing hydrofabric data
  - 'ext' : 'gpkg' # Required. file extension of the hydrofrabric data. Default 'gpkg'. 
  - 'hf_cat_sel': "total" # Required. Options include 'total' or 'all'; total: interested in the single location's aggregated catchment data; all: all subcatchments of interest
- - 's3_path_hydatl' : '{s3_base}/hydroATLAS/hydroatlas_vars.parquet' # path to hydroatlas data formatted for hydrofabric. Required only if hydroatlas variables desired.
 attr_select: # The names of variable sublistings are standardized, e.g. ha_vars, usgs_vars, sc_vars
+  - 's3_path_hydatl': '{s3_base}/hydroATLAS/hydroatlas_vars.parquet' # path to hydroatlas data formatted for hydrofabric. Required only if hydroatlas variables desired.
   - 'ha_vars':  # hydroatlas variables. Must specify s3_path_hydatl if desired.
     - 'pet_mm_s01'
     - 'cly_pc_sav'

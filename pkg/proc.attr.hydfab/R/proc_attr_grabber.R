@@ -696,7 +696,8 @@ check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TR
     # attr_cfg_path <- paste0(dir_base, '/xssa_attr_config_all_vars_avail.yaml')
     attr_cfg <- yaml::read_yaml(attr_cfg_path)
     attr_cfg_sel <- attr_cfg[['attr_select']] # select the section for attributes
-    vars_sel <- attr_cfg_sel%>% base::unlist() %>% base::unname()
+    attr_cfg_sel <- attr_cfg_sel[-1] # remove the s3 path to hydroatlas vars
+    vars_sel <- attr_cfg_sel %>% base::unlist() %>% base::unname()
 
     print_query <- function(dataset_index, verbose = verbose){
       dataset <- attr_cfg_sel[[dataset_index]] %>% names()
