@@ -193,7 +193,7 @@ def _proc_check_std_fs_ids(vars: list, category=['metric','target_var'][0]):
         variables (e.g. ['NSE','RMSE'])
     :type vars: list
     :param category: choose the category of 'metric' or 'target_var' desired
-        from the formulation-selection standardized categories file. Defaults to 'metric'
+        from the formulation-selector standardized categories file. Defaults to 'metric'
     :type category: list, optional
     :raises ValueError: If at least one of the provided vars is not standard,
         raises error. 
