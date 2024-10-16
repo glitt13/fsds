@@ -4,11 +4,9 @@
 # Regionalization and Formulation Testing and Selection (RaFTS)
 
 **Description**:  
-The formulation-selector tool, Regionalation and Formulation Testing & Selection (RaFTS) is under development. For more information, see the [Wiki](https://github.com/NOAA-OWP/formulation-selector/wiki). 
+The formulation-selector tool, aka Regionalation and Formulation Testing & Selection (RaFTS), is under development. For more information, see the [Wiki](https://github.com/NOAA-OWP/formulation-selector/wiki). 
 
 As NOAA OWP builds the model-agnostic NextGen framework, the hydrologic modeling community will need to know how to optimally select model formulations and estimate parameter values across ungauged catchments. This problem becomes intractable when considering the unique combinations of current and future model formulations combined with the innumerable possible parameter combinations across the continent. To simplify the model selection problem, we apply an analytical tool that predicts hydrologic formulation performance (Bolotin et al., 2022, Liu et al., 2022) using community-generated data. The regionalization and formulation testing and selection (RaFTS) tool readily predicts how models might perform across catchments based on catchment attributes. This decision support tool is designed such that as the hydrologic modeling community generates more results, better decisions can be made on where formulations would be best suited.
-
-As NOAA OWP builds the model-agnostic NextGen framework, the hydrologic modeling community will need to know how to optimally select model formulations and estimate parameter values across ungauged catchments. This problem becomes intractable when considering the unique combinations of current and future model formulations combined with the innumerable possible parameter combinations across the continent. To simplify the model selection problem, we apply an analytical tool that predicts hydrologic formulation performance (Bolotin et al., 2022, Liu et al., 2022) using community-generated data. The regionalization and formulation testing & selection (RaFTS) tool readily predicts how models might perform across catchments based on catchment attributes. This decision support tool is designed such that as the hydrologic modeling community generates more results, better decisions can be made on where formulations would be best suited.
 
 **Technology stack**: 
   - **Python:** The features of the formulation-selector that ingest model results and catchment attributes to predict model performances based on catchment attributes is written in Python. 
@@ -48,8 +46,7 @@ You may consider creating a new virtual environment for employing `formulation-s
 
 ### TL;DR
 - [NOAA-OWP/hydrofabric](https://github.com/NOAA-OWP/hydrofabric)
-  - Note that the arrow package needs `arro
-  w::arrow_with_s3() == TRUE`. If `FALSE`, consider downloading arrow via [apache's r-universe](https://apache.r-universe.dev/arrow)
+  - Note that the arrow package needs `arrow::arrow_with_s3() == TRUE`. If `FALSE`, consider downloading arrow via [apache's r-universe](https://apache.r-universe.dev/arrow)
   - Steps to install hydrofabric: Refer to wiki
 - [USGS nhdplusTools](https://github.com/doi-usgs/nhdplusTools/)
 - [pynhd](https://github.com/hyriver/pynhd)
@@ -61,7 +58,7 @@ You may consider creating a new virtual environment for employing `formulation-s
  - Install `fs_proc` package
    `pip install /path/to/pkg/fs_proc/fs_proc/.`
  - Build a yaml config file `/sripts/eval_metrics/name_of_dataset_here/name_of_dataset_schema.yaml` (refer to this template)[https://github.com/glitt13/fsds/blob/std_catg/scripts/eval_ingest/xssa/xssa_schema.yaml)
- - Create a script that reads in the data and runs the standardization processing. [Example script here](https://github.com/glitt13/fsds/blob/std_catg/scripts/eval_ingest/xssa/proc_xssa_metrics.py)
+ - Create a script that reads in the data and runs the standardization processing. [Example script here](https://github.com/NOAA-OWP/formulation-selector/blob/main/scripts/eval_ingest/xssa/proc_xssa_metrics.py)
  - Then run the following:
   ```
   cd /path/to/scripts/eval_metrics/name_of_dataset_here/
@@ -83,7 +80,7 @@ We track these tasks inside `formulation-selector/scripts/eval_ingest/_name_of_r
 #### 1. `data_schema.yaml`
 The data schema yaml file contains the following fields:
  - `col_schema`:  required column mappings in the evaluation metrics dataset. These describe the column names in the raw data and how they'll map to standardized column names. 
-    - for `metric_mappings` refer to the the [fs_categories.yaml](https://github.com/glitt13/fsds/blob/std_catg/pkg/fsds_proc/fsds_proc/data/fsds_categories.yaml) 
+    - for `metric_mappings` refer to the the [fs_categories.yaml](https://github.com/NOAA-OWP/formulation-selector/blob/main/pkg/fs_proc/fs_proc/data/fs_categories.yaml) 
  - `file_io`: The location of the input data and desired save location. Also specifies the save file format.
  - `formulation_metadata`: Descriptive traits of the model formulation that generated the metrics. Some of these are required fields while others are optional.
  - `references`: Optional but _very_ helplful metadata describing where the data came from.
@@ -143,10 +140,10 @@ General instructions on _how_ to contribute should be stated with a link to [CON
 Attributes from non-standardized datasets may need to be acquired for RaFTS modeling and prediction. The R package `proc.attr.hydfab` performs the attribute grabbing.
 
 ## Installation - `proc.attr.hydfab` R package
-Run [`flow.install.proc.attr.hydfab.R`](https://github.com/glitt13/fsds/blob/main/pkg/proc.attr.hydfab/flow/flow.install.proc.attr.hydfab.R) to install the package. Note that a user may need to modify the section that creates the `fs_dir` for their custom path to this repo's directory.
+Run [`flow.install.proc.attr.hydfab.R`](https://github.com/NOAA-OWP/formulation-selector/blob/main/pkg/proc.attr.hydfab/flow/flow.install.proc.attr.hydfab.R) to install the package. Note that a user may need to modify the section that creates the `fs_dir` for their custom path to this repo's directory.
 
 ## Usage - `proc.attr.hydfab`
-The following is an example script that runs the attribute grabber: [`fs_attrs_grab`](https://github.com/glitt13/fsds/blob/main/pkg/proc.attr.hydfab/flow/fsds_attrs_grab.R).
+The following is an example script that runs the attribute grabber: [`fs_attrs_grab`](https://github.com/NOAA-OWP/formulation-selector/blob/main/pkg/proc.attr.hydfab/flow/fsds_attrs_grab.R).
 
 This script grabs attribute data corresponding to locations of interest, and saves those attribute data inside a directory as multiple parquet files. The `proc.attr.hydfab::retrieve_attr_exst()` function may then efficiently query and then retrieve desired data by variable name and comid from those parquet files.
 
