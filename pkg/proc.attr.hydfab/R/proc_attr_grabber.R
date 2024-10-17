@@ -163,15 +163,16 @@ proc_attr_hydatl <- function(hf_id, s3_path, ha_vars, local_path=NA){
 
 proc_attr_usgs_nhd <- function(comid,usgs_vars){
   #' @title Retrieve USGS variables based on comid
-  #' @param comid character class. The common identifier USGS location code for a surface water feature.
+  #' @param comid character class. The common identifier USGS location code for
+  #' a surface water feature. May be multiple comids.
   #' @param usgs_vars list class. The standardized names of NHDplus variables.
   #' @seealso \code{nhdplusTools::get_characteristics_metadata() }
   #' @export
   # Get the s3 urls for each variable of interest
   usgs_meta<- nhdplusTools::get_characteristics_metadata() %>%
     dplyr::filter(ID %in% usgs_vars)
-  # Extract the variable data corresponding to the COMID
 
+  # Extract the variable data corresponding to the COMID
   ls_usgs_mlti <- list()
   for (r in 1:nrow(usgs_meta)){
     var_id <- usgs_meta$ID[r]
