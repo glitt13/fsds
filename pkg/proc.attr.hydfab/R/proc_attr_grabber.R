@@ -171,13 +171,13 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
   usgs_meta<- nhdplusTools::get_characteristics_metadata() %>%
     dplyr::filter(ID %in% usgs_vars)
   # Extract the variable data corresponding to the COMID
+
   ls_usgs_mlti <- list()
   for (r in 1:nrow(usgs_meta)){
     var_id <- usgs_meta$ID[r]
     ls_usgs_mlti[[r]] <- arrow::open_dataset(usgs_meta$s3_url[r]) %>%
       dplyr::select(dplyr::all_of(c("COMID",var_id))) %>%
-      dplyr::collect() %>%
-      dplyr::filter(COMID==!!comid) #%>%
+      dplyr::filter(COMID %in% comid) %>% collect()
   }
   # Combining it all
   usgs_subvars <- ls_usgs_mlti %>% purrr::reduce(dplyr::full_join, by = 'COMID')
