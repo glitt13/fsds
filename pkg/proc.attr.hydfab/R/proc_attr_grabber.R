@@ -137,7 +137,7 @@ proc_attr_hydatl <- function(hf_id, s3_path, ha_vars, local_path=NA){
 
   # TODO check for local hydroatlas dataset before proceeding with s3 connection
   if(!base::is.na(local_path)){
-    stop(paste0("The following path does not exist for saving hydroatlas
+    stop(paste0("The local path capability does not yet exist for saving hydroatlas
                    data:\n",local_path))
 
   } else {
