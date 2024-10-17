@@ -188,7 +188,8 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
 
 proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'gpkg',
                          lyrs=c('divides','network')[2],
-                         hf_cat_sel=TRUE, overwrite=FALSE){
+                         hf_cat_sel=TRUE, overwrite=FALSE,
+                         type = 'nextgen', domain = 'conus'){
 
   #' @title Retrieve hydrofabric data of interest based on location identifier
   #' @author Guy Litt \email{guy.litt@noaa.gov}
@@ -200,6 +201,8 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   #' @param lyrs character class. The layer name(s) of interest from hydrofabric. Default 'network'.
   #' @param hf_cat_sel boolean. TRUE for a total catchment characterization specific to a single comid, FALSE (or anything else) for all subcatchments
   #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default FALSE.
+  #' @param type hydrofabric type. Default 'nextgen'
+  #' @param domain hydrofabric domain Default 'conus'
   #' @export
 
   # Build the hydfab filepath
@@ -221,7 +224,8 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   # Utilize hydrofabric subsetter for the catchment and download to local path
   pkgcond::suppress_warnings(hfsubsetR::get_subset(nldi_feature = nldi_feat,
                         outfile = fp_cat,
-                        type = 'reference',lyrs = lyrs,
+                        type = type,lyrs = lyrs,
+                        domain = domain,
                         overwrite=overwrite),pattern="exists and overwrite is FALSE")
 
   # Read the hydrofabric file gpkg for each layer
@@ -296,7 +300,7 @@ proc_attr_exst_wrap <- function(comid,path_attrs,vars_ls,bucket_conn=NA){
   return(list(dt_all=dt_all,need_vars=need_vars))
 }
 
-proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE){
+proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hfab_retr=FALSE){
   #' @title Wrapper to retrieve variables when processing attributes
   #' @author Guy Litt \email{guy.litt@noaa.gov}
   #' @description Identifies a comid location using the hydrofabric and then
@@ -314,6 +318,7 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE){
   #' @param Retr_Params list. List of list structure with parameters/paths needed to acquire variables of interest
   #' @param lyrs character. The layer names of interest from the hydrofabric gpkg. Default 'network'
   #' @param overwrite boolean. Should the hydrofabric cloud data acquisition be redone and overwrite any local files? Default FALSE.
+  #' @param hfab_retr boolean. Should the hydrofabric geopackage data be retrieved? Default FALSE.
   #' @seealso \code{\link{proc_attrs_gageids}}
   #' @export
 
@@ -321,16 +326,22 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE){
   #   2024-07-25 Originally created, GL
   message(base::paste0("Processing COMID ",comid))
 
-  # Retrieve the hydrofabric id
-  net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
-                                        dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
-                                        custom_name ="{lyrs}_",
-                                        lyrs=lyrs,overwrite=overwrite))
-  if ('try-error' %in% base::class(net)){
-    warning(glue::glue("Could not acquire hydrofabric for comid {comid}. Proceeding to acquire variables of interest without hydrofabric."))
+  if(hfab_retr){
+    # Retrieve the hydrofabric id
+    net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
+                                              dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
+                                              custom_name ="{lyrs}_",
+                                              lyrs=lyrs,overwrite=overwrite))
+    if ('try-error' %in% base::class(net)){
+      warning(glue::glue("Could not acquire hydrofabric for comid {comid}. Proceeding to acquire variables of interest without hydrofabric."))
+      net <- list()
+      net$hf_id <- comid
+    }
+  } else {
     net <- list()
     net$hf_id <- comid
   }
+
 
   path_attrs <- base::file.path(Retr_Params$paths$dir_db_attrs,
                           base::paste0("comid_",comid,"_attrs.parquet"))

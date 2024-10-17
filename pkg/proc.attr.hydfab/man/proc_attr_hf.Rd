@@ -11,7 +11,9 @@ proc_attr_hf(
   fileext = "gpkg",
   lyrs = c("divides", "network")[2],
   hf_cat_sel = TRUE,
-  overwrite = FALSE
+  overwrite = FALSE,
+  type = "nextgen",
+  domain = "conus"
 )
 }
 \arguments{
@@ -28,6 +30,10 @@ proc_attr_hf(
 \item{hf_cat_sel}{boolean. TRUE for a total catchment characterization specific to a single comid, FALSE (or anything else) for all subcatchments}
 
 \item{overwrite}{boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default FALSE.}
+
+\item{type}{hydrofabric type. Default 'nextgen'}
+
+\item{domain}{hydrofabric domain Default 'conus'}
 }
 \description{
 Checks to see if a local dataset exists. If not, retrieve from lynker-spatial s3 bucket
