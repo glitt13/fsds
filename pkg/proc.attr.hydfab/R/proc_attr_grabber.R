@@ -169,7 +169,7 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
   #' @seealso \code{nhdplusTools::get_characteristics_metadata() }
   #' @export
   # Get the s3 urls for each variable of interest
-  usgs_meta<- nhdplusTools::get_characteristics_metadata() %>%
+  usgs_meta <- nhdplusTools::get_characteristics_metadata() %>%
     dplyr::filter(ID %in% usgs_vars)
 
   # Extract the variable data corresponding to the COMID
@@ -192,10 +192,10 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
 proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'gpkg',
                          lyrs=c('divides','network')[2],
                          hf_cat_sel=TRUE,
-                         overwrite=base::formals(hfsubsetR::get_subset)$overwrite,
-                         hf_version = base::formals(hfsubsetR::get_subset)$hf_version,
-                         type = base::formals(hfsubsetR::get_subset)$type,
-                         domain = base::formals(hfsubsetR::get_subset)$domain
+                         overwrite=FALSE,
+                         hf_version = NULL,
+                         type = NULL,
+                         domain = NULL
                          ){
 
   #' @title Retrieve hydrofabric data of interest based on location identifier
@@ -207,10 +207,10 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   #' @param fileext character class. file extension of hydrofabric file. Default 'gpkg'
   #' @param lyrs character class. The layer name(s) of interest from hydrofabric. Default 'network'.
   #' @param hf_cat_sel boolean. TRUE for a total catchment characterization specific to a single comid, FALSE (or anything else) for all subcatchments
-  #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default to same as \code{hfsubsetR::get_subset()}, likley FALSE.
-  #' @param hf_version character class. The hydrofabric version. Default to same as \code{hfsubsetR::get_subset()}
-  #' @param type hydrofabric type. Default to same as \code{hfsubsetR::get_subset()}, likely 'nextgen'
-  #' @param domain hydrofabric domain. Default to same as \code{hfsubsetR::get_subset()}, likely 'conus'
+  #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default to FALSE.
+  #' @param hf_version character class. The hydrofabric version. When NULL, defaults to same as \code{hfsubsetR::get_subset()}
+  #' @param type hydrofabric type. When NULL, defaults to same as \code{hfsubsetR::get_subset()}, likely 'nextgen'
+  #' @param domain hydrofabric domain. When NULL, defaults to same as \code{hfsubsetR::get_subset()}, likely 'conus'
   #' @export
 
   # Build the hydfab filepath
@@ -218,6 +218,21 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
                                    custom_name=glue::glue('{lyrs}_'),
                                    fileext=fileext)
   fp_cat <- base::file.path(dir_db_hydfab, name_file)
+
+  # Set to the defaults in hfsubsetR if not defined.
+  if(is.null(type)){
+    type <- base::formals(hfsubsetR::get_subset)$type
+  }
+  if(is.null(hf_version)){
+    hf_version <- base::formals(hfsubsetR::get_subset)$hf_version
+  }
+  if(is.null(domain)){
+    domain <- base::formals(hfsubsetR::get_subset)$domain
+  }
+  if(is.null(overwrite)){
+    overwrite <- base::formals(hfsubsetR::get_subset)$overwrite
+  }
+
 
   if(!base::dir.exists(dir_db_hydfab)){
     warning(glue::glue("creating the following directory: {dir_db_hydfab}"))
@@ -798,11 +813,12 @@ hfab_config_opt <- function(hfab_config,
   vals_hfab_config <- lapply(hfab_config, function(x) x[[names(x)]])
   names(vals_hfab_config) <-  base::lapply(hfab_config,
                                            function(x) base::names(x)) %>%
-    base::unlist()
+                base::unlist()
   # The required variables in the hydfab_config section:
 
   sub_hfab_config <- base::within(vals_hfab_config,base::rm(list=reqd_hfab))
   names_sub_hfab <- names(sub_hfab_config)
+
 
   xtra_cfig_hfab <- list()
   for(n in names_sub_hfab){
@@ -822,7 +838,8 @@ hfab_config_opt <- function(hfab_config,
       if (!base::is.null(base::formals(proc.attr.hydfab::proc_attr_hf)[[n]])){
         xtra_cfig_hfab[[n]] <- base::formals(proc.attr.hydfab::proc_attr_hf)[[n]]
       } else if (bool_in_get_subset) { # Otherwise use the default value in hfsubsetR::get_subset()
-        xtra_cfig_hfab[[n]] <- base::formals(hfsubsetR::get_subset)[[n]]
+        def_val <- base::formals(hfsubsetR::get_subset)[[n]]
+        xtra_cfig_hfab[[n]] <- def_val
       } else if (bool_in_proc_attr_wrap){ # Otherwise Use the wrapper's default value
         xtra_cfig_hfab[[n]] <- base::formals(proc.attr.hydfab::proc_attr_wrap)[[n]]
       }
