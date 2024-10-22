@@ -22,7 +22,6 @@ library(yaml)
 library(ncdf4)
 library(proc.attr.hydfab)
 library(glue)
-<<<<<<< HEAD
 
 # TODO is AWS_NO_SIGN_REQUEST necessary??
 # Sys.setenv(AWS_NO_SIGN_REQUEST="YES")
