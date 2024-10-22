@@ -13,6 +13,7 @@
 #' @seealso [fs_proc] A python package that processes input data for the
 #' formulation-selector
 #' @usage Rscript fs_attrs_grab.R "/path/to/attribute_config.yaml"
+
 # Changelog / Contributions
 #   2024-07-24 Originally created, GL
 
@@ -21,6 +22,7 @@ library(yaml)
 library(ncdf4)
 library(proc.attr.hydfab)
 library(glue)
+<<<<<<< HEAD
 
 # TODO is AWS_NO_SIGN_REQUEST necessary??
 # Sys.setenv(AWS_NO_SIGN_REQUEST="YES")
@@ -87,6 +89,7 @@ message(glue::glue("Attribute variables to be acquired include :\n
 
 Retr_Params <- base::list(paths = base::list(
   # Note that if a path is provided, ensure the
+
   # name includes 'path'. Same for directory having variable name with 'dir'
                         dir_db_hydfab=dir_db_hydfab,
                         dir_db_attrs=dir_db_attrs,

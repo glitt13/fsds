@@ -9,10 +9,10 @@ file_io: # May define {home_dir} for python's '{home_dir}/string_path'.format(ho
   - 'path_camels': '{home_dir}/noaa/camels/camels_hydro.txt' # Path to the CAMELS basins dataset. CAMELS data should not always be a requirement for dataset processing, but serves to help analyze common catchments.
   - 'path_data': '{home_dir}/noaa/regionalization/data/julemai-xSSA/data_in/basin_metadata/basin_validation_results.txt' # Where the raw input data are stored.
   - 'dir_save': '{home_dir}/noaa/regionalization/data/input' # Required. The save location of standardized output
-  - 'save_type': 'zarr' #  Required. Save as hierarchical files 'netcdf' or 'zarr'. Default 'netcdf' until attribute 
+  - 'save_type': 'netcdf' #  Required. Save as hierarchical files 'netcdf' or 'zarr'. Default 'netcdf' until attribute 
   - 'save_loc': 'local' #  Required.  Use 'local' for saving to a local path via dir_save. Future work will create an approach for 'aws' or other cloud saving methods
 formulation_metadata:  
-  - 'dataset_name': 'juliemai-xSSA_zarr' # Required. 
+  - 'dataset_name': 'juliemai-xSSA' # Required. 
   - 'formulation_base': 'Raven_blended' # Required. Basename of formulation. the rr, sp, and gw will be added to this if 'formulation_id' is left empty
   - 'formulation_id': 'Raven_blended' # Optional alternative in lieu of generating a formulation_id based on 'formulation_base'. Should leave empty if automatic formulation_id generation desired.
   - 'formulation_ver': # Optional. The version of the formulation
