@@ -451,7 +451,8 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   #' location. Acquires user-requested variables from multiple catchment
   #' attribute sources. Calls \code{\link{proc_attr_wrap}} which writes all
   #' acquired variables to a parquet file as a standard data.table format.
-  #' Returns a list of comids that corresponded to the gage_ids
+  #' Returns a data.table of all data returned from \code{nhdplusTools::get_nldi_feature}
+  #' that corresponded to the gage_ids
   #' @param gage_ids array of gage_id values to be queried for catchment attributes
   #' @param featureSource The \code{\link[nhdplusTools]{get_nldi_features}}feature featureSource,
   #' e.g. 'nwissite'
@@ -492,7 +493,7 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   if(base::is.null(hfab_retr)){ # Use default in the proc_attr_wrap() function
     hfab_retr <- base::formals(proc.attr.hydfab::proc_attr_wrap)$hfab_retr
   }
-
+  ls_site_feat <- list()
   ls_comid <- base::list()
   for (gage_id in gage_ids){ #
     if(!base::exists("gage_id")){
@@ -506,13 +507,16 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
                             featureID = as.character(glue::glue(featureID)) # This should expect {'gage_id'} as a variable!
     )
     site_feature <- try(nhdplusTools::get_nldi_feature(nldi_feature = nldi_feat))
+
     if('try-error' %in% class(site_feature)){
       stop(glue::glue("The following nldi features didn't work. You may need to
              revisit the configuration yaml file that processes this dataset in
             fs_proc: \n {featureSource}, and featureID={featureID}"))
     } else if (!is.null(site_feature)){
       comid <- site_feature['comid']$comid
+      ls_site_feat[[gage_id]] <- site_feature
       ls_comid[[gage_id]] <- comid
+
       # Retrieve the variables corresponding to datasets of interest & update database
       loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
                                                     Retr_Params=Retr_Params,
@@ -533,7 +537,9 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
     warning(glue::glue("The following gage_id values did not return a comid:\n
                        {gage_ids_missing}"))
   }
-  return(ls_comid)
+
+  dt_site_feat <- data.table::rbindlist(ls_site_feat)
+  return(dt_site_feat)
 }
 
 read_loc_data <- function(loc_id_filepath, loc_id, fmt = 'csv'){
@@ -629,6 +635,8 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
   #' @title Grab catchment attributes from processed formulation-selector input
   #' @description Wrapper function that acquires catchment attribute data from
   #' formulation-selector processed input generated via \pkg{fs_proc} package
+  #' Returns list of data.table object of nhdplusTools::get_nldi_feature()
+  #' for all gage_ids
   #' @param Retr_Params list of parameters built for grabbing catchment attribute data. List objects include the following:
   #'  \itemize{
   #'  \item \code{paths} list of directories or paths used to acquire and save data These include the following:
@@ -668,7 +676,7 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
                       "\n\n Reconsider the dataset and/or directory choice."))
   }
 
-  ls_comids_all <- base::list()
+  ls_sitefeat_all <- base::list()
   for(dataset_name in datasets){ # Looping by dataset
     message(glue::glue("--- PROCESSING {dataset_name} DATASET ---"))
     dir_dataset <- base::file.path(Retr_Params$paths$dir_std_base,dataset_name)
@@ -681,13 +689,14 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
     featureID <- ls_fs_std$featureID
 
     # ---------------------- Grab all needed attributes ---------------------- #
-    ls_comids <- proc.attr.hydfab::proc_attr_gageids(gage_ids,
+    dt_site_feat <- proc.attr.hydfab::proc_attr_gageids(gage_ids,
                                                      featureSource,
                                                      featureID,
                                                      Retr_Params,
                                                      lyrs=lyrs,
                                                      overwrite=overwrite)
-    ls_comids_all[[dataset_name]] <- ls_comids
+    dt_site_feat$dataset_name <- dataset_name
+    ls_sitefeat_all[[dataset_name]] <- dt_site_feat
   }
   # -------------------------------------------------------------------------- #
   # ------------ Grab attributes from a separate loc_id file ----------------- #
@@ -700,22 +709,36 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
     if(base::nrow(dat_loc)>0){
       # TODO bugfix this here
       loc_id <- Retr_Params$loc_id_read$loc_id
-      ls_comids_loc <- proc.attr.hydfab::proc_attr_gageids(gage_ids=as.array(dat_loc[['gage_id']]),
+      dt_site_feat <- proc.attr.hydfab::proc_attr_gageids(gage_ids=as.array(dat_loc[['gage_id']]),
                                                            featureSource=Retr_Params$loc_id_read$featureSource_loc,
                                                            featureID=Retr_Params$loc_id_read$featureID_loc,
                                                            Retr_Params,
                                                            lyrs=lyrs,
                                                            overwrite=overwrite)
+      dt_site_feat$dataset_name <- Retr_Params$loc_id_read$loc_id_filepath
     } else {
       # TODO add check that user didn't provide parameter expecting to read data
     }
     # Combine lists
-    ls_comids_all[[Retr_Params$loc_id_read$loc_id_filepath]] <- ls_comids_loc
+    ls_sitefeat_all[[Retr_Params$loc_id_read$loc_id_filepath]] <- dt_site_feat
   }
 
 
+  # WRITE OUTPUT
+  #for(ds in Retr_Params$datasets){
+  for(ds in names(ls_sitefeat_all)){
+    dir_ds <- base::file.path(Retr_Params$paths$dir_std_base, ds)
+    if(!dir.exists(dir_ds)){
+      warning(glue::glue("The dataset directory is expected to exist: {dir_ds}. Creating it."))
+      dir.create(dir_ds)
 
-  return(ls_comids_all)
+    }
+    path_ds_comids <- file.path(dir_ds,glue::glue("nldi_feat_{ds}.csv"))
+
+    utils::write.csv(ls_site_feat_dt[[ds]],path_ds_comids,row.names = FALSE)
+  }
+
+  return(ls_sitefeat_all)
 }
 
 check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TRUE){
