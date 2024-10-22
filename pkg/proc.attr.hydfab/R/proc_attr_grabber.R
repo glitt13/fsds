@@ -326,7 +326,7 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hf
   #   2024-07-25 Originally created, GL
   message(base::paste0("Processing COMID ",comid))
 
-  if(hfab_retr){
+  if(hfab_retr){ # Retreive the hydrofabric data, downloading to dir_db_hydfab
     # Retrieve the hydrofabric id
     net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
                                               dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
@@ -458,6 +458,12 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
     }
   }
 
+  # Should hydrofabric data be retrieved?
+  hfab_retr <- Retr_Params$xtra_hfab$hfab_retr
+  if(base::is.null(hfab_retr)){ # Use default in the proc_attr_wrap() function
+    hfab_retr <- base::formals(proc.attr.hydfab::proc_attr_wrap)$hfab_retr
+  }
+
   ls_comid <- base::list()
   for (gage_id in gage_ids){ #
     if(!base::exists("gage_id")){
@@ -481,7 +487,8 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
       # Retrieve the variables corresponding to datasets of interest & update database
       loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
                                                     Retr_Params=Retr_Params,
-                                                    lyrs=lyrs,overwrite=FALSE))
+                                                    lyrs=lyrs,overwrite=FALSE,
+                                                    hfab_retr=hfab_retr))
       if("try-error" %in% class(loc_attrs)){
         message(glue::glue("Skipping gage_id {gage_id} corresponding to comid {comid}"))
       }
@@ -758,5 +765,57 @@ check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TR
     missing_vars <- NA
   }
   return(missing_vars)
+}
+
+hfab_config_opt <- function(hfab_config,
+                            reqd_hfab=c("s3_base","s3_bucket","hf_cat_sel","source")){
+  #' @title Configure hydrofabric-relevant optional params
+  #' @description If an argument provided in the config file is NULL, first look
+  #' for default param value from the \code{proc.attr_hydfab::proc_attr_hf}.
+  #' If that is NULL, then look for default value from the
+  #' \code{hfsubsetR::get_subset()} args if that param exists there. Otherwise,
+  #' uses default param value in \code{proc.attr_hydfab::proc_attr_wrap}.
+  #' @param hfab_config The hydrofabric-specific section from the config file, hydfab_config. list.
+  #' @param reqd_hfab The non-optional item names in the hydrofabric config file
+  #' @return List with default arguments populated corresponding to hfsubetR::get_subset(),
+  #' @export
+
+  # The values inside the hydrofabric configuration section from attr config file
+  vals_hfab_config <- lapply(hfab_config, function(x) x[[names(x)]])
+  names(vals_hfab_config) <-  base::lapply(hfab_config,
+                                           function(x) base::names(x)) %>%
+    base::unlist()
+  # The required variables in the hydfab_config section:
+
+  sub_hfab_config <- base::within(vals_hfab_config,base::rm(list=reqd_hfab))
+  names_sub_hfab <- names(sub_hfab_config)
+
+  xtra_cfig_hfab <- list()
+  for(n in names_sub_hfab){
+    x <- sub_hfab_config[[n]]
+    if(base::is.null(x)){
+      # Is this an argument inside proc_attr_hf()?
+      bool_in_proc_attr_hf <- n %in%
+        base::names(base::formals(proc.attr.hydfab::proc_attr_hf))
+      # Is this an argument inside proc_attr_wrap()?
+      bool_in_proc_attr_wrap <- n %in%
+        base::names(base::formals(proc.attr.hydfab::proc_attr_wrap))
+      # Is this an argument inside hsubsetR::get_subset()?
+      bool_in_get_subset <- n %in%
+        base::names(base::formals(hfsubsetR::get_subset))
+
+      # Goal: default to value inside proc_attr_hf if default not NULL
+      if (!base::is.null(base::formals(proc.attr.hydfab::proc_attr_hf)[[n]])){
+        xtra_cfig_hfab[[n]] <- base::formals(proc.attr.hydfab::proc_attr_hf)[[n]]
+      } else if (bool_in_get_subset) { # Otherwise use the default value in hfsubsetR::get_subset()
+        xtra_cfig_hfab[[n]] <- base::formals(hfsubsetR::get_subset)[[n]]
+      } else if (bool_in_proc_attr_wrap){ # Otherwise Use the wrapper's default value
+        xtra_cfig_hfab[[n]] <- base::formals(proc.attr.hydfab::proc_attr_wrap)[[n]]
+      }
+    } else {
+      xtra_cfig_hfab[[n]] <- x
+    }
+  }
+  return(xtra_cfig_hfab)
 }
 
