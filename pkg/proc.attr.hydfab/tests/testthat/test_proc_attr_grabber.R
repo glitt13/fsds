@@ -46,7 +46,12 @@ Retr_Params <- list(paths = list(dir_db_hydfab=dir_db_hydfab,
                                  dir_std_base = dir_user),
                     vars = list(usgs_vars = usgs_vars,
                                 ha_vars = ha_vars),
-                    datasets = 'xssa-mini')
+                    datasets = 'xssa-mini',
+                    xtra_hfab = list(hf_version = "2.1.1",
+                                     hfab_retr = TRUE,
+                                     type='nextgen',
+                                     domain='conus'
+                                     ))
 # ---------------------------------------------------------------------------- #
 #                              UNIT TESTING
 # ---------------------------------------------------------------------------- #
