@@ -178,18 +178,25 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
     var_id <- usgs_meta$ID[r]
     ls_usgs_mlti[[r]] <- arrow::open_dataset(usgs_meta$s3_url[r]) %>%
       dplyr::select(dplyr::all_of(c("COMID",var_id))) %>%
-      dplyr::filter(COMID %in% comid) %>% collect()
+      dplyr::filter(COMID %in% comid) %>% dplyr::collect() %>%
+      pkgcond::suppress_warnings()
   }
+
   # Combining it all
   usgs_subvars <- ls_usgs_mlti %>% purrr::reduce(dplyr::full_join, by = 'COMID')
+
   return(usgs_subvars)
 }
 
 
 proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'gpkg',
                          lyrs=c('divides','network')[2],
-                         hf_cat_sel=TRUE, overwrite=FALSE,
-                         type = 'nextgen', domain = 'conus'){
+                         hf_cat_sel=TRUE,
+                         overwrite=base::formals(hfsubsetR::get_subset)$overwrite,
+                         hf_version = base::formals(hfsubsetR::get_subset)$hf_version,
+                         type = base::formals(hfsubsetR::get_subset)$type,
+                         domain = base::formals(hfsubsetR::get_subset)$domain
+                         ){
 
   #' @title Retrieve hydrofabric data of interest based on location identifier
   #' @author Guy Litt \email{guy.litt@noaa.gov}
@@ -200,9 +207,10 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   #' @param fileext character class. file extension of hydrofabric file. Default 'gpkg'
   #' @param lyrs character class. The layer name(s) of interest from hydrofabric. Default 'network'.
   #' @param hf_cat_sel boolean. TRUE for a total catchment characterization specific to a single comid, FALSE (or anything else) for all subcatchments
-  #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default FALSE.
-  #' @param type hydrofabric type. Default 'nextgen'
-  #' @param domain hydrofabric domain Default 'conus'
+  #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default to same as \code{hfsubsetR::get_subset()}, likley FALSE.
+  #' @param hf_version character class. The hydrofabric version. Default to same as \code{hfsubsetR::get_subset()}
+  #' @param type hydrofabric type. Default to same as \code{hfsubsetR::get_subset()}, likely 'nextgen'
+  #' @param domain hydrofabric domain. Default to same as \code{hfsubsetR::get_subset()}, likely 'conus'
   #' @export
 
   # Build the hydfab filepath
@@ -224,7 +232,9 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   # Utilize hydrofabric subsetter for the catchment and download to local path
   pkgcond::suppress_warnings(hfsubsetR::get_subset(nldi_feature = nldi_feat,
                         outfile = fp_cat,
-                        type = type,lyrs = lyrs,
+                        lyrs = lyrs,
+                        hf_version = hf_version,
+                        type = type,
                         domain = domain,
                         overwrite=overwrite),pattern="exists and overwrite is FALSE")
 
@@ -331,7 +341,11 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hf
     net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
                                               dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
                                               custom_name ="{lyrs}_",
-                                              lyrs=lyrs,overwrite=overwrite))
+                                              lyrs=Retr_Params$xtra_hfab$lyrs,
+                                              hf_version = Retr_Params$xtra_hfab$hf_version,
+                                              type = Retr_Params$xtra_hfab$type,
+                                              domain = Retr_Params$xtra_hfab$domain,
+                                              overwrite=overwrite))
     if ('try-error' %in% base::class(net)){
       warning(glue::glue("Could not acquire hydrofabric for comid {comid}. Proceeding to acquire variables of interest without hydrofabric."))
       net <- list()
