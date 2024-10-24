@@ -88,7 +88,6 @@ message(glue::glue("Attribute variables to be acquired include :\n
 
 Retr_Params <- base::list(paths = base::list(
   # Note that if a path is provided, ensure the
-
   # name includes 'path'. Same for directory having variable name with 'dir'
                         dir_db_hydfab=dir_db_hydfab,
                         dir_db_attrs=dir_db_attrs,
