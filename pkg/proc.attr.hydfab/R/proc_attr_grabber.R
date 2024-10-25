@@ -779,8 +779,8 @@ write_meta_nldi_feat <- function(dt_site_feat, dir_std_base, ds, ds_type,
 
   if (base::length(geom_cols)>0){ # Remove the sfc-formatted coordinates
     xy_df <- sf::st_coordinates(dt_site_feat[[geom_cols]])
-    dt_site_feat <- dt_site_feat %>% select(-dplyr::all_of(geom_cols))
-    if("X|lat|latitude" %in% colnames(dt_site_feat)){
+    dt_site_feat <- dt_site_feat %>% dplyr::select(-dplyr::all_of(geom_cols))
+    if("X|lat|latitude" %in% base::colnames(dt_site_feat)){
       warning("Losing coordinates in the dataset. Consider adding them back in
               by modifying write_meta_nldi_feat.")
     }
