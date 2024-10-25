@@ -93,7 +93,7 @@ retrieve_attr_exst <- function(comids, vars, dir_db_attrs, bucket_conn=NA){
   # Run check on all comid-attribute pairings by counting comid-var pairings
   sum_var_df <- dat_all_attrs %>%
     dplyr::group_by(featureID) %>%
-    summarise(n_distinct(attribute))
+    dplyr::summarise(dplyr::n_distinct(attribute))
   idxs_miss_vars <- base::which(sum_var_df$`n_distinct(attribute)` != length(vars))
   if(base::length(idxs_miss_vars)>0){
     warning(glue::glue("The following comids are missing desired variables:

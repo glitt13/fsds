@@ -52,7 +52,6 @@ main <- function(){
   dir_db_attrs <- glue::glue(base::unlist(io_cfig)[['dir_db_attrs']])
 
 
-
   # The filepath of the file that generates the list of comids used for prediction
   save_path_pred <- glue::glue(cfig_pred$pred_file_in)
 
@@ -79,8 +78,6 @@ main <- function(){
   ls_vars <- names_attr_sel[grep("_vars",names_attr_sel)]
   vars_ls <- base::lapply(ls_vars, function(x) base::unlist(base::lapply(cfig_attr[['attr_select']], function(y) y[[x]])))
   names(vars_ls) <- ls_vars
-
-
 
   # The attribute retrieval parameters
   Retr_Params <- list(paths = list(# Note that if a path is provided, ensure the
@@ -140,7 +137,7 @@ main <- function(){
                                                    lyrs=lyrs,
                                                    overwrite=overwrite)
 
-
+  # TODO change the dir_std_base here. Not part of repo!!
   proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat=dt_site_feat,
                                          dir_std_base=Retr_Params$paths$dir_std_base,
                                          Retr_Params$datasets,
