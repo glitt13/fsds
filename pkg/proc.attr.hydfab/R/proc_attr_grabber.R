@@ -645,6 +645,7 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
   #'  \item \code{path$s3_path_hydatl} the s3 location where hydroatlas data exist
   #'  \item \code{path$dir_std_base} the location of user_data_std containing dataset that were standardized by \pkg{fs_proc}.
   #'  \item \code{datasets} character vector. A list of datasets of interest inside \code{paths$dir_std_base}. If 'all' is specified, then all datasets in the directory are processed.
+  #'  \item \code{ds_type} character. The identifier to use in filename when writing attribute location metadata retrieved from nhdplusTools::get_nldi_feature()
   #'  }
   #' @param overwrite boolean default FALSE. Should hydrofabric data be overwritten?
   #' @param lyrs default "network" the hydrofabric layers of interest.
@@ -676,6 +677,7 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
                       "\n\n Reconsider the dataset and/or directory choice."))
   }
 
+
   ls_sitefeat_all <- base::list()
   for(dataset_name in datasets){ # Looping by dataset
     message(glue::glue("--- PROCESSING {dataset_name} DATASET ---"))
@@ -701,6 +703,7 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
   # -------------------------------------------------------------------------- #
   # ------------ Grab attributes from a separate loc_id file ----------------- #
   if (!base::is.null(Retr_Params$loc_id_read$loc_id_filepath)){
+    # NOTE 2024-10-25: this feature hasn't been fully developed and may be ignored
     # Generate list of identifiers
     dat_loc <- proc.attr.hydfab::read_loc_data(Retr_Params$loc_id_read$loc_id_filepath,
                                                Retr_Params$loc_id_read$gage_id,
@@ -723,23 +726,80 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
     ls_sitefeat_all[[Retr_Params$loc_id_read$loc_id_filepath]] <- dt_site_feat
   }
 
+  # -------------------------------------------------------------------------- #
+  # ------------------- Write attribute metadata to file
+  for(ds in base::names(ls_sitefeat_all)){
+    write_meta_nldi_feat(dt_site_feat = ls_sitefeat_all[[ds]],
+                         dir_std_base = Retr_Params$paths$dir_std_base,
+                         ds = ds,
+                         ds_type = Retr_Params$ds_type)
 
-  # WRITE OUTPUT
-  #for(ds in Retr_Params$datasets){
-  for(ds in names(ls_sitefeat_all)){
-    dir_ds <- base::file.path(Retr_Params$paths$dir_std_base, ds)
-    if(!dir.exists(dir_ds)){
-      warning(glue::glue("The dataset directory is expected to exist: {dir_ds}. Creating it."))
-      dir.create(dir_ds)
-
-    }
-    path_ds_comids <- file.path(dir_ds,glue::glue("nldi_feat_{ds}.csv"))
-
-    utils::write.csv(ls_site_feat_dt[[ds]],path_ds_comids,row.names = FALSE)
   }
 
   return(ls_sitefeat_all)
 }
+
+write_meta_nldi_feat <- function(dt_site_feat, dir_std_base, ds, ds_type,
+                                 write_type = c('csv','parquet')[2]){
+  #' @title Write metadata from NLDI retrieval
+  #' @description
+    #' A short description...
+  #' @seealso [proc_attr_gageids]
+  #' @param dt_site_feat data.table or data.frame of NLDI site features
+  #' retrieved using nhdplusTools::get_nldi_feature() and organized
+  #' using proc.attr.hydfab::proc_attr_gageids
+  #' @param dir_std_base the location of user_data_std containing dataset that
+  #'  were standardized by \pkg{fs_proc}.
+  #' @param ds character. The dataset name.
+  #' @param ds_type character. The identifier to use in filename when writing
+  #' attribute location metadata retrieved from nhdplusTools::get_nldi_feature()
+  #' @param write_type character. How to write the file. 'csv' or 'parquet' are
+  #' options. Default 'parquet'.
+  #' @export
+
+  dir_ds <- base::file.path(dir_std_base, ds)
+  if(!base::dir.exists(dir_ds)){
+    warning(glue::glue(
+      "The dataset directory is expected to exist: {dir_ds}. Creating it."))
+    base::dir.create(dir_ds)
+  }
+
+
+  if(base::is.null(ds_type) || base::is.na(ds_type)){
+    # Hopefully not needed, but just-in-case ds_type not defined
+    warning('ds_type not defined, and thus will not make it into the filename')
+    ds_type <- ''
+  }
+
+  # Check to see if any sfc_POINT objects exist:
+  dtype_sfc_bool <- base::lapply(base::colnames(dt_site_feat),
+                   function(x) any(grepl("sfc", class(dt_site_feat[[x]]))))
+  geom_cols <- base::colnames(dt_site_feat)[unlist(dtype_sfc_bool)]
+
+  if (base::length(geom_cols)>0){ # Remove the sfc-formatted coordinates
+    xy_df <- sf::st_coordinates(dt_site_feat[[geom_cols]])
+    dt_site_feat <- dt_site_feat %>% select(-dplyr::all_of(geom_cols))
+    if("X|lat|latitude" %in% colnames(dt_site_feat)){
+      warning("Losing coordinates in the dataset. Consider adding them back in
+              by modifying write_meta_nldi_feat.")
+    }
+  }
+
+  if(write_type == 'parquet'){
+    path_ds_comids <- base::file.path(dir_ds,
+                                      glue::glue("nldi_feat_{ds}_{ds_type}.parquet"))
+    arrow::write_parquet(dt_site_feat,path_ds_comids)
+  } else if(write_type == 'csv'){
+    path_ds_comids <- base::file.path(dir_ds,
+                                      glue::glue("nldi_feat_{ds}_{ds_type}.csv"))
+    utils::write.csv(x=dt_site_feat,
+                     file=path_ds_comids,
+                     row.names = FALSE)
+  }
+
+  base::message(glue::glue("Wrote nldi location metadata to {path_ds_comids}"))
+}
+
 
 check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TRUE){
   #' @title Check that attributes selected by user are available

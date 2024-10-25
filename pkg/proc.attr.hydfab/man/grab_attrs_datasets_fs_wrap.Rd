@@ -15,6 +15,7 @@ grab_attrs_datasets_fs_wrap(Retr_Params, lyrs = "network", overwrite = FALSE)
 \item \code{path$s3_path_hydatl} the s3 location where hydroatlas data exist
 \item \code{path$dir_std_base} the location of user_data_std containing dataset that were standardized by \pkg{fs_proc}.
 \item \code{datasets} character vector. A list of datasets of interest inside \code{paths$dir_std_base}. If 'all' is specified, then all datasets in the directory are processed.
+\item \code{ds_type} character. The identifier to use in filename when writing attribute location metadata retrieved from nhdplusTools::get_nldi_feature()
 }}
 
 \item{lyrs}{default "network" the hydrofabric layers of interest.
