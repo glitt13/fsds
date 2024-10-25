@@ -539,6 +539,7 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   }
 
   dt_site_feat <- data.table::rbindlist(ls_site_feat)
+  dt_site_feat$gage_id <- gage_ids # Add the original identifier to dataset
   return(dt_site_feat)
 }
 
