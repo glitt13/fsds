@@ -4,29 +4,14 @@
 \alias{write_meta_nldi_feat}
 \title{Write metadata from NLDI retrieval}
 \usage{
-write_meta_nldi_feat(
-  dt_site_feat,
-  dir_std_base,
-  ds,
-  ds_type,
-  write_type = c("csv", "parquet")[2]
-)
+write_meta_nldi_feat(dt_site_feat, path_meta)
 }
 \arguments{
 \item{dt_site_feat}{data.table or data.frame of NLDI site features
 retrieved using nhdplusTools::get_nldi_feature() and organized
 using proc.attr.hydfab::proc_attr_gageids}
 
-\item{dir_std_base}{the location of user_data_std containing dataset that
-were standardized by \pkg{fs_proc}.}
-
-\item{ds}{character. The dataset name.}
-
-\item{ds_type}{character. The identifier to use in filename when writing
-attribute location metadata retrieved from nhdplusTools::get_nldi_feature()}
-
-\item{write_type}{character. How to write the file. 'csv' or 'parquet' are
-options. Default 'parquet'.}
+\item{path_meta}{the filepath for writing nldi metadata. May be parquet or csv file.}
 }
 \description{
 A short description...

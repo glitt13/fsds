@@ -51,6 +51,9 @@ ds_type <- try(base::unlist(raw_config$file_io)[['ds_type']])
 if('try-error' %in% base::class(ds_type)){
   ds_type <- ''
 }
+write_type <- glue::glue(base::unlist(raw_config$file_io)[['write_type']])# file format for writing  writing NLDI feature metadata. Default 'parquet'. May also select 'csv'.
+path_meta <- base::unlist(raw_config$file_io)[['path_meta']]  # Full file path for writing NLDI feature metadata of training data formatted for glue::glue(). Default: "{dir_std_base}/{ds}/nldi_feat_{ds}_{ds_type}.{write_type}"
+
 
 # Read s3 connection details
 s3_base <- base::unlist(raw_config$hydfab_config)[['s3_base']]#s3://lynker-spatial/tabular-resources" # s3 path containing hydrofabric-formatted attribute datasets
@@ -96,10 +99,12 @@ Retr_Params <- base::list(paths = base::list(
                         dir_db_hydfab=dir_db_hydfab,
                         dir_db_attrs=dir_db_attrs,
                         s3_path_hydatl = s3_path_hydatl,
-                        dir_std_base = dir_std_base),
+                        dir_std_base = dir_std_base,
+                        path_meta = path_meta),
                    vars = sub_attr_sel,
                    datasets = datasets,
-                   ds_type = ds_type
+                   ds_type = ds_type,
+                   write_type = write_type
        )
 # PROCESS ATTRIBUTES
 ls_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrite = TRUE)

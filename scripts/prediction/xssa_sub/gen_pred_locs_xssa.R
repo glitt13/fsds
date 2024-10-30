@@ -40,6 +40,8 @@ main <- function(){
 
   cfig_pred <- yaml::read_yaml(path_cfig_pred)
   ds_type <- base::unlist(cfig_pred)[['ds_type']]
+  write_type <- base::unlist(cfig_pred)[['write_type']]
+  path_meta <- base::unlist(cfig_pred)[['path_meta']] # The filepath of the file that generates the list of comids used for prediction
   # READ IN ATTRIBUTE CONFIG FILE
   path_attr_config <- glue::glue(cfig_pred[['path_attr_config']])
   cfig_attr <- yaml::read_yaml(path_attr_config)
@@ -51,10 +53,6 @@ main <- function(){
   dir_db_hydfab <- glue::glue(base::unlist(io_cfig)[['dir_db_hydfab']])
   dir_db_attrs <- glue::glue(base::unlist(io_cfig)[['dir_db_attrs']])
 
-
-  # The filepath of the file that generates the list of comids used for prediction
-  save_path_pred <- glue::glue(cfig_pred$pred_file_in)
-
   # ------------------------ ATTRIBUTE CONFIGURATION --------------------------- #
   hfab_cfg <- cfig_attr[['hydfab_config']]
 
@@ -65,7 +63,7 @@ main <- function(){
   s3_path_hydatl <- glue::glue(unlist(cfig_attr[['attr_select']])[['s3_path_hydatl']]) # path to hydroatlas data formatted for hydrofabric
 
   form_cfig <- cfig_attr[['formulation_metadata']]
-  datasets <- ds <- form_cfig[[grep("datasets",form_cfig)]]$datasets
+  datasets <- form_cfig[[grep("datasets",form_cfig)]]$datasets
 
   # Additional config options
   hf_cat_sel <- base::unlist(hfab_cfg)[['hf_cat_sel']]#c("total","all")[1] # total: interested in the single location's aggregated catchment data; all: all subcatchments of interest
@@ -85,10 +83,12 @@ main <- function(){
     dir_db_hydfab=dir_db_hydfab,
     dir_db_attrs=dir_db_attrs,
     s3_path_hydatl = s3_path_hydatl,
-    dir_std_base = dir_std_base),
+    dir_std_base = dir_std_base,
+    path_meta=path_meta),
     vars = vars_ls,
     datasets = datasets,
-    ds_type = ds_type
+    ds_type = ds_type,
+    write_type = write_type
   )
   ###################### DATASET-SPECIFIC CUSTOM MUNGING #########################
   # USER INPUT: Paths to relevant config files
@@ -137,11 +137,15 @@ main <- function(){
                                                    lyrs=lyrs,
                                                    overwrite=overwrite)
 
-  # TODO change the dir_std_base here. Not part of repo!!
-  proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat=dt_site_feat,
-                                         dir_std_base=Retr_Params$paths$dir_std_base,
-                                         Retr_Params$datasets,
-                                         ds_type=ds_type)
+
+
+  for(ds in datasets){
+    path_nldi_out <- glue::glue(path_meta)
+
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat=dt_site_feat,
+                                           path_meta = path_nldi_out)
+  }
+
 
 }
 

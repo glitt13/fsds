@@ -55,6 +55,45 @@ Retr_Params <- list(paths = list(dir_db_hydfab=dir_db_hydfab,
 # ---------------------------------------------------------------------------- #
 #                              UNIT TESTING
 # ---------------------------------------------------------------------------- #
+
+testthat::test_that("write_meta_nldi_feat", {
+  # TODO why does the write test fail?
+  dt_site_feat <- readRDS(file.path(dir_base,"nldi_site_feat.Rds"))
+  path_meta <- file.path(temp_dir, 'nldi_site_feat.parquet')
+
+  # This first checks for whether a warning is created
+  if(!base::dir.exists(dirname(path_meta))){
+    warn_rslt <- testthat::capture_condition(
+      proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                                             path_meta=path_meta))
+    testthat::expect_true(grepl("expect", warn_rslt$message))
+  }
+
+
+  rslt <- testthat::capture_condition(
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                                           path_meta=path_meta))
+  testthat::expect_true(grepl(path_meta, rslt$message))
+
+
+  files_exst <- base::list.files(base::dirname(path_meta))
+  testthat::expect_true(base::file.exists(path_meta))
+
+  path_meta_csv <- base::gsub(".parquet",replacement = ".csv",x=path_meta)
+  rslt_csv <- testthat::capture_condition(
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                path_meta=path_meta_csv))
+  testthat::expect_true(file.exists(path_meta_csv))
+
+  path_meta_fake_ext <- base::gsub(".parquet",replacement = ".fake",x=path_meta)
+  rslt_fake <- testthat::capture_condition(
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                                           path_meta=path_meta_fake_ext))
+
+  testthat::expect_true(grepl("extension",rslt_fake$message))
+})
+
+
 testthat::test_that("proc_attr_std_hfsub_name standardized name generator", {
   testthat::expect_equal('hydrofab_testit_111.parquet',
                proc.attr.hydfab:::proc_attr_std_hfsub_name(111,"testit",'parquet'))

@@ -478,10 +478,10 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   #  Changelog/Contributions
   #   2024-07-29 Originally created, GL
 
-  # Path checker/maker of anything that's a directory
+  # Path checker/maker of anything that's a directory not formatted for later glue::glue() calls
   for(dir in Retr_Params$paths){
     if(base::grepl('dir',dir)){
-      if(!base::dir.exists(dir)){
+      if(!base::dir.exists(dir) && !base::grepl("\\{",dir)){
         message(glue::glue("Creating {dir}"))
         base::dir.create(dir)
       }
@@ -730,18 +730,21 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
   # -------------------------------------------------------------------------- #
   # ------------------- Write attribute metadata to file
   for(ds in base::names(ls_sitefeat_all)){
-    write_meta_nldi_feat(dt_site_feat = ls_sitefeat_all[[ds]],
-                         dir_std_base = Retr_Params$paths$dir_std_base,
-                         ds = ds,
-                         ds_type = Retr_Params$ds_type)
+    # Define the objects expected in path_meta for glue-formatting
 
+    ds_type <- Retr_Params$ds_type
+    dir_std_base <- Retr_Params$paths$dir_std_base
+    write_type <- Retr_Params$write_type
+    path_meta <- glue::glue(Retr_Params$paths$path_meta)
+
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat = ls_sitefeat_all[[ds]],
+                         path_meta = path_meta)
   }
 
   return(ls_sitefeat_all)
 }
 
-write_meta_nldi_feat <- function(dt_site_feat, dir_std_base, ds, ds_type,
-                                 write_type = c('csv','parquet')[2]){
+write_meta_nldi_feat <- function(dt_site_feat, path_meta){
   #' @title Write metadata from NLDI retrieval
   #' @description
     #' A short description...
@@ -749,56 +752,47 @@ write_meta_nldi_feat <- function(dt_site_feat, dir_std_base, ds, ds_type,
   #' @param dt_site_feat data.table or data.frame of NLDI site features
   #' retrieved using nhdplusTools::get_nldi_feature() and organized
   #' using proc.attr.hydfab::proc_attr_gageids
-  #' @param dir_std_base the location of user_data_std containing dataset that
-  #'  were standardized by \pkg{fs_proc}.
-  #' @param ds character. The dataset name.
-  #' @param ds_type character. The identifier to use in filename when writing
-  #' attribute location metadata retrieved from nhdplusTools::get_nldi_feature()
-  #' @param write_type character. How to write the file. 'csv' or 'parquet' are
-  #' options. Default 'parquet'.
+  #' @param path_meta the filepath for writing nldi metadata. May be parquet or csv file.
   #' @export
 
-  dir_ds <- base::file.path(dir_std_base, ds)
-  if(!base::dir.exists(dir_ds)){
+  if(base::grepl("\\{",path_meta)){
+    stop("path_meta passed into write_meta_nldi_feat still has glue formatted
+         string containing '{}'. Make sure the object inside the curly brackets
+         is defined before calling write_meta_nldi_feat().")
+  }
+
+  if(!base::dir.exists(base::dirname(path_meta))){
     warning(glue::glue(
-      "The dataset directory is expected to exist: {dir_ds}. Creating it."))
-    base::dir.create(dir_ds)
+      "The dataset directory is expected to exist: {base::dirname(path_meta)}. Creating it."))
+    base::dir.create(base::dirname(path_meta),recursive = TRUE)
   }
 
-
-  if(base::is.null(ds_type) || base::is.na(ds_type)){
-    # Hopefully not needed, but just-in-case ds_type not defined
-    warning('ds_type not defined, and thus will not make it into the filename')
-    ds_type <- ''
-  }
-
-  # Check to see if any sfc_POINT objects exist:
+  # Check to see if any sfc_POINT objects exist & remove in order to write table
   dtype_sfc_bool <- base::lapply(base::colnames(dt_site_feat),
-                   function(x) any(grepl("sfc", class(dt_site_feat[[x]]))))
-  geom_cols <- base::colnames(dt_site_feat)[unlist(dtype_sfc_bool)]
+                   function(x) base::any(base::grepl("sfc",
+                                                     class(dt_site_feat[[x]]))))
+  geom_cols <- base::colnames(dt_site_feat)[base::unlist(dtype_sfc_bool)]
 
   if (base::length(geom_cols)>0){ # Remove the sfc-formatted coordinates
     xy_df <- sf::st_coordinates(dt_site_feat[[geom_cols]])
     dt_site_feat <- dt_site_feat %>% dplyr::select(-dplyr::all_of(geom_cols))
-    if("X|lat|latitude" %in% base::colnames(dt_site_feat)){
+    if(!base::any(base::grepl("X|lat|latitude",base::colnames(dt_site_feat)))){
       warning("Losing coordinates in the dataset. Consider adding them back in
-              by modifying write_meta_nldi_feat.")
+              by modifying proc.attr.hydfab::write_meta_nldi_feat.")
     }
   }
 
-  if(write_type == 'parquet'){
-    path_ds_comids <- base::file.path(dir_ds,
-                                      glue::glue("nldi_feat_{ds}_{ds_type}.parquet"))
-    arrow::write_parquet(dt_site_feat,path_ds_comids)
-  } else if(write_type == 'csv'){
-    path_ds_comids <- base::file.path(dir_ds,
-                                      glue::glue("nldi_feat_{ds}_{ds_type}.csv"))
+  if(base::grepl('parquet',tools::file_ext(path_meta))){
+    arrow::write_parquet(dt_site_feat,
+                         path_meta)
+  } else if(base::grepl('csv',tools::file_ext(path_meta))){
     utils::write.csv(x=dt_site_feat,
-                     file=path_ds_comids,
+                     file=path_meta,
                      row.names = FALSE)
+  } else {
+    stop("File extension is not in expected format of csv or parquet")
   }
-
-  base::message(glue::glue("Wrote nldi location metadata to {path_ds_comids}"))
+  base::message(glue::glue("Wrote nldi location metadata to {path_meta}"))
 }
 
 
