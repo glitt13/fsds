@@ -93,7 +93,7 @@ retrieve_attr_exst <- function(comids, vars, dir_db_attrs, bucket_conn=NA){
   # Run check on all comid-attribute pairings by counting comid-var pairings
   sum_var_df <- dat_all_attrs %>%
     dplyr::group_by(featureID) %>%
-    summarise(n_distinct(attribute))
+    dplyr::summarise(dplyr::n_distinct(attribute))
   idxs_miss_vars <- base::which(sum_var_df$`n_distinct(attribute)` != length(vars))
   if(base::length(idxs_miss_vars)>0){
     warning(glue::glue("The following comids are missing desired variables:
@@ -137,7 +137,7 @@ proc_attr_hydatl <- function(hf_id, s3_path, ha_vars, local_path=NA){
 
   # TODO check for local hydroatlas dataset before proceeding with s3 connection
   if(!base::is.na(local_path)){
-    stop(paste0("The following path does not exist for saving hydroatlas
+    stop(paste0("The local path capability does not yet exist for saving hydroatlas
                    data:\n",local_path))
 
   } else {
@@ -163,31 +163,40 @@ proc_attr_hydatl <- function(hf_id, s3_path, ha_vars, local_path=NA){
 
 proc_attr_usgs_nhd <- function(comid,usgs_vars){
   #' @title Retrieve USGS variables based on comid
-  #' @param comid character class. The common identifier USGS location code for a surface water feature.
+  #' @param comid character class. The common identifier USGS location code for
+  #' a surface water feature. May be multiple comids.
   #' @param usgs_vars list class. The standardized names of NHDplus variables.
   #' @seealso \code{nhdplusTools::get_characteristics_metadata() }
   #' @export
   # Get the s3 urls for each variable of interest
-  usgs_meta<- nhdplusTools::get_characteristics_metadata() %>%
+  usgs_meta <- nhdplusTools::get_characteristics_metadata() %>%
     dplyr::filter(ID %in% usgs_vars)
+
   # Extract the variable data corresponding to the COMID
   ls_usgs_mlti <- list()
   for (r in 1:nrow(usgs_meta)){
     var_id <- usgs_meta$ID[r]
     ls_usgs_mlti[[r]] <- arrow::open_dataset(usgs_meta$s3_url[r]) %>%
       dplyr::select(dplyr::all_of(c("COMID",var_id))) %>%
-      dplyr::collect() %>%
-      dplyr::filter(COMID==!!comid) #%>%
+      dplyr::filter(COMID %in% comid) %>% dplyr::collect() %>%
+      pkgcond::suppress_warnings()
   }
+
   # Combining it all
   usgs_subvars <- ls_usgs_mlti %>% purrr::reduce(dplyr::full_join, by = 'COMID')
+
   return(usgs_subvars)
 }
 
 
 proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'gpkg',
                          lyrs=c('divides','network')[2],
-                         hf_cat_sel=TRUE, overwrite=FALSE){
+                         hf_cat_sel=TRUE,
+                         overwrite=FALSE,
+                         hf_version = NULL,
+                         type = NULL,
+                         domain = NULL
+                         ){
 
   #' @title Retrieve hydrofabric data of interest based on location identifier
   #' @author Guy Litt \email{guy.litt@noaa.gov}
@@ -198,7 +207,10 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   #' @param fileext character class. file extension of hydrofabric file. Default 'gpkg'
   #' @param lyrs character class. The layer name(s) of interest from hydrofabric. Default 'network'.
   #' @param hf_cat_sel boolean. TRUE for a total catchment characterization specific to a single comid, FALSE (or anything else) for all subcatchments
-  #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default FALSE.
+  #' @param overwrite boolean. Overwrite local data when pulling from hydrofabric s3 bucket? Default to FALSE.
+  #' @param hf_version character class. The hydrofabric version. When NULL, defaults to same as \code{hfsubsetR::get_subset()}
+  #' @param type hydrofabric type. When NULL, defaults to same as \code{hfsubsetR::get_subset()}, likely 'nextgen'
+  #' @param domain hydrofabric domain. When NULL, defaults to same as \code{hfsubsetR::get_subset()}, likely 'conus'
   #' @export
 
   # Build the hydfab filepath
@@ -206,6 +218,21 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
                                    custom_name=glue::glue('{lyrs}_'),
                                    fileext=fileext)
   fp_cat <- base::file.path(dir_db_hydfab, name_file)
+
+  # Set to the defaults in hfsubsetR if not defined.
+  if(is.null(type)){
+    type <- base::formals(hfsubsetR::get_subset)$type
+  }
+  if(is.null(hf_version)){
+    hf_version <- base::formals(hfsubsetR::get_subset)$hf_version
+  }
+  if(is.null(domain)){
+    domain <- base::formals(hfsubsetR::get_subset)$domain
+  }
+  if(is.null(overwrite)){
+    overwrite <- base::formals(hfsubsetR::get_subset)$overwrite
+  }
+
 
   if(!base::dir.exists(dir_db_hydfab)){
     warning(glue::glue("creating the following directory: {dir_db_hydfab}"))
@@ -220,7 +247,10 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   # Utilize hydrofabric subsetter for the catchment and download to local path
   pkgcond::suppress_warnings(hfsubsetR::get_subset(nldi_feature = nldi_feat,
                         outfile = fp_cat,
-                        type = 'reference',lyrs = lyrs,
+                        lyrs = lyrs,
+                        hf_version = hf_version,
+                        type = type,
+                        domain = domain,
                         overwrite=overwrite),pattern="exists and overwrite is FALSE")
 
   # Read the hydrofabric file gpkg for each layer
@@ -295,7 +325,7 @@ proc_attr_exst_wrap <- function(comid,path_attrs,vars_ls,bucket_conn=NA){
   return(list(dt_all=dt_all,need_vars=need_vars))
 }
 
-proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE){
+proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hfab_retr=FALSE){
   #' @title Wrapper to retrieve variables when processing attributes
   #' @author Guy Litt \email{guy.litt@noaa.gov}
   #' @description Identifies a comid location using the hydrofabric and then
@@ -313,6 +343,7 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE){
   #' @param Retr_Params list. List of list structure with parameters/paths needed to acquire variables of interest
   #' @param lyrs character. The layer names of interest from the hydrofabric gpkg. Default 'network'
   #' @param overwrite boolean. Should the hydrofabric cloud data acquisition be redone and overwrite any local files? Default FALSE.
+  #' @param hfab_retr boolean. Should the hydrofabric geopackage data be retrieved? Default FALSE.
   #' @seealso \code{\link{proc_attrs_gageids}}
   #' @export
 
@@ -320,16 +351,26 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE){
   #   2024-07-25 Originally created, GL
   message(base::paste0("Processing COMID ",comid))
 
-  # Retrieve the hydrofabric id
-  net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
-                                        dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
-                                        custom_name ="{lyrs}_",
-                                        lyrs=lyrs,overwrite=overwrite))
-  if ('try-error' %in% base::class(net)){
-    warning(glue::glue("Could not acquire hydrofabric for comid {comid}. Proceeding to acquire variables of interest without hydrofabric."))
+  if(hfab_retr){ # Retreive the hydrofabric data, downloading to dir_db_hydfab
+    # Retrieve the hydrofabric id
+    net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
+                                              dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
+                                              custom_name ="{lyrs}_",
+                                              lyrs=Retr_Params$xtra_hfab$lyrs,
+                                              hf_version = Retr_Params$xtra_hfab$hf_version,
+                                              type = Retr_Params$xtra_hfab$type,
+                                              domain = Retr_Params$xtra_hfab$domain,
+                                              overwrite=overwrite))
+    if ('try-error' %in% base::class(net)){
+      warning(glue::glue("Could not acquire hydrofabric for comid {comid}. Proceeding to acquire variables of interest without hydrofabric."))
+      net <- list()
+      net$hf_id <- comid
+    }
+  } else {
     net <- list()
     net$hf_id <- comid
   }
+
 
   path_attrs <- base::file.path(Retr_Params$paths$dir_db_attrs,
                           base::paste0("comid_",comid,"_attrs.parquet"))
@@ -410,7 +451,8 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   #' location. Acquires user-requested variables from multiple catchment
   #' attribute sources. Calls \code{\link{proc_attr_wrap}} which writes all
   #' acquired variables to a parquet file as a standard data.table format.
-  #' Returns a list of comids that corresponded to the gage_ids
+  #' Returns a data.table of all data returned from \code{nhdplusTools::get_nldi_feature}
+  #' that corresponded to the gage_ids
   #' @param gage_ids array of gage_id values to be queried for catchment attributes
   #' @param featureSource The \code{\link[nhdplusTools]{get_nldi_features}}feature featureSource,
   #' e.g. 'nwissite'
@@ -436,16 +478,22 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   #  Changelog/Contributions
   #   2024-07-29 Originally created, GL
 
-  # Path checker/maker of anything that's a directory
+  # Path checker/maker of anything that's a directory not formatted for later glue::glue() calls
   for(dir in Retr_Params$paths){
     if(base::grepl('dir',dir)){
-      if(!base::dir.exists(dir)){
+      if(!base::dir.exists(dir) && !base::grepl("\\{",dir)){
         message(glue::glue("Creating {dir}"))
         base::dir.create(dir)
       }
     }
   }
 
+  # Should hydrofabric data be retrieved?
+  hfab_retr <- Retr_Params$xtra_hfab$hfab_retr
+  if(base::is.null(hfab_retr)){ # Use default in the proc_attr_wrap() function
+    hfab_retr <- base::formals(proc.attr.hydfab::proc_attr_wrap)$hfab_retr
+  }
+  ls_site_feat <- list()
   ls_comid <- base::list()
   for (gage_id in gage_ids){ #
     if(!base::exists("gage_id")){
@@ -459,11 +507,13 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
                             featureID = as.character(glue::glue(featureID)) # This should expect {'gage_id'} as a variable!
     )
     site_feature <- try(nhdplusTools::get_nldi_feature(nldi_feature = nldi_feat))
+
     if('try-error' %in% class(site_feature)){
       stop(glue::glue("The following nldi features didn't work. You may need to
              revisit the configuration yaml file that processes this dataset in
             fs_proc: \n {featureSource}, and featureID={featureID}"))
     } else if (!is.null(site_feature)){
+<<<<<<< HEAD
       if(!base::is.na(site_feature['comid']$comid)){
         comid <- site_feature['comid']$comid
       } else {
@@ -472,11 +522,17 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
         comid <- nhdplusTools::discover_nhdplus_id(point=site_feature$geometry)
       }
 
+=======
+      comid <- site_feature['comid']$comid
+      ls_site_feat[[gage_id]] <- site_feature
+>>>>>>> upstream/main
       ls_comid[[gage_id]] <- comid
+
       # Retrieve the variables corresponding to datasets of interest & update database
       loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
                                                     Retr_Params=Retr_Params,
-                                                    lyrs=lyrs,overwrite=FALSE))
+                                                    lyrs=lyrs,overwrite=FALSE,
+                                                    hfab_retr=hfab_retr))
       if("try-error" %in% class(loc_attrs)){
         message(glue::glue("Skipping gage_id {gage_id} corresponding to comid {comid}"))
       }
@@ -492,7 +548,10 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
     warning(glue::glue("The following gage_id values did not return a comid:\n
                        {gage_ids_missing}"))
   }
-  return(ls_comid)
+
+  dt_site_feat <- data.table::rbindlist(ls_site_feat)
+  dt_site_feat$gage_id <- gage_ids # Add the original identifier to dataset
+  return(dt_site_feat)
 }
 
 read_loc_data <- function(loc_id_filepath, loc_id, fmt = 'csv'){
@@ -588,6 +647,8 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
   #' @title Grab catchment attributes from processed formulation-selector input
   #' @description Wrapper function that acquires catchment attribute data from
   #' formulation-selector processed input generated via \pkg{fs_proc} package
+  #' Returns list of data.table object of nhdplusTools::get_nldi_feature()
+  #' for all gage_ids
   #' @param Retr_Params list of parameters built for grabbing catchment attribute data. List objects include the following:
   #'  \itemize{
   #'  \item \code{paths} list of directories or paths used to acquire and save data These include the following:
@@ -596,6 +657,7 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
   #'  \item \code{path$s3_path_hydatl} the s3 location where hydroatlas data exist
   #'  \item \code{path$dir_std_base} the location of user_data_std containing dataset that were standardized by \pkg{fs_proc}.
   #'  \item \code{datasets} character vector. A list of datasets of interest inside \code{paths$dir_std_base}. If 'all' is specified, then all datasets in the directory are processed.
+  #'  \item \code{ds_type} character. The identifier to use in filename when writing attribute location metadata retrieved from nhdplusTools::get_nldi_feature()
   #'  }
   #' @param overwrite boolean default FALSE. Should hydrofabric data be overwritten?
   #' @param lyrs default "network" the hydrofabric layers of interest.
@@ -627,7 +689,8 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
                       "\n\n Reconsider the dataset and/or directory choice."))
   }
 
-  ls_comids_all <- base::list()
+
+  ls_sitefeat_all <- base::list()
   for(dataset_name in datasets){ # Looping by dataset
     message(glue::glue("--- PROCESSING {dataset_name} DATASET ---"))
     dir_dataset <- base::file.path(Retr_Params$paths$dir_std_base,dataset_name)
@@ -640,17 +703,19 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
     featureID <- ls_fs_std$featureID
 
     # ---------------------- Grab all needed attributes ---------------------- #
-    ls_comids <- proc.attr.hydfab::proc_attr_gageids(gage_ids,
+    dt_site_feat <- proc.attr.hydfab::proc_attr_gageids(gage_ids,
                                                      featureSource,
                                                      featureID,
                                                      Retr_Params,
                                                      lyrs=lyrs,
                                                      overwrite=overwrite)
-    ls_comids_all[[dataset_name]] <- ls_comids
+    dt_site_feat$dataset_name <- dataset_name
+    ls_sitefeat_all[[dataset_name]] <- dt_site_feat
   }
   # -------------------------------------------------------------------------- #
   # ------------ Grab attributes from a separate loc_id file ----------------- #
   if (!base::is.null(Retr_Params$loc_id_read$loc_id_filepath)){
+    # NOTE 2024-10-25: this feature hasn't been fully developed and may be ignored
     # Generate list of identifiers
     dat_loc <- proc.attr.hydfab::read_loc_data(Retr_Params$loc_id_read$loc_id_filepath,
                                                Retr_Params$loc_id_read$gage_id,
@@ -659,23 +724,88 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
     if(base::nrow(dat_loc)>0){
       # TODO bugfix this here
       loc_id <- Retr_Params$loc_id_read$loc_id
-      ls_comids_loc <- proc.attr.hydfab::proc_attr_gageids(gage_ids=as.array(dat_loc[['gage_id']]),
+      dt_site_feat <- proc.attr.hydfab::proc_attr_gageids(gage_ids=as.array(dat_loc[['gage_id']]),
                                                            featureSource=Retr_Params$loc_id_read$featureSource_loc,
                                                            featureID=Retr_Params$loc_id_read$featureID_loc,
                                                            Retr_Params,
                                                            lyrs=lyrs,
                                                            overwrite=overwrite)
+      dt_site_feat$dataset_name <- Retr_Params$loc_id_read$loc_id_filepath
     } else {
       # TODO add check that user didn't provide parameter expecting to read data
     }
     # Combine lists
-    ls_comids_all[[Retr_Params$loc_id_read$loc_id_filepath]] <- ls_comids_loc
+    ls_sitefeat_all[[Retr_Params$loc_id_read$loc_id_filepath]] <- dt_site_feat
   }
 
+  # -------------------------------------------------------------------------- #
+  # ------------------- Write attribute metadata to file
+  for(ds in base::names(ls_sitefeat_all)){
+    # Define the objects expected in path_meta for glue-formatting
 
+    ds_type <- Retr_Params$ds_type
+    dir_std_base <- Retr_Params$paths$dir_std_base
+    write_type <- Retr_Params$write_type
+    path_meta <- glue::glue(Retr_Params$paths$path_meta)
 
-  return(ls_comids_all)
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat = ls_sitefeat_all[[ds]],
+                         path_meta = path_meta)
+  }
+
+  return(ls_sitefeat_all)
 }
+
+write_meta_nldi_feat <- function(dt_site_feat, path_meta){
+  #' @title Write metadata from NLDI retrieval
+  #' @description
+    #' A short description...
+  #' @seealso [proc_attr_gageids]
+  #' @param dt_site_feat data.table or data.frame of NLDI site features
+  #' retrieved using nhdplusTools::get_nldi_feature() and organized
+  #' using proc.attr.hydfab::proc_attr_gageids
+  #' @param path_meta the filepath for writing nldi metadata. May be parquet or csv file.
+  #' @export
+
+  if(base::grepl("\\{",path_meta)){
+    stop("path_meta passed into write_meta_nldi_feat still has glue formatted
+         string containing '{}'. Make sure the object inside the curly brackets
+         is defined before calling write_meta_nldi_feat().")
+  }
+
+  if(!base::dir.exists(base::dirname(path_meta))){
+    warning(glue::glue(
+      "The dataset directory is expected to exist: {base::dirname(path_meta)}. Creating it."))
+    base::dir.create(base::dirname(path_meta),recursive = TRUE)
+  }
+
+  # Check to see if any sfc_POINT objects exist & remove in order to write table
+  dtype_sfc_bool <- base::lapply(base::colnames(dt_site_feat),
+                   function(x) base::any(base::grepl("sfc",
+                                                     class(dt_site_feat[[x]]))))
+  geom_cols <- base::colnames(dt_site_feat)[base::unlist(dtype_sfc_bool)]
+
+  if (base::length(geom_cols)>0){ # Remove the sfc-formatted coordinates
+    xy_df <- sf::st_coordinates(dt_site_feat[[geom_cols]])
+    dt_site_feat <- dt_site_feat %>% dplyr::select(-dplyr::all_of(geom_cols))
+    if(!base::any(base::grepl("X|lat|latitude",base::colnames(dt_site_feat)))){
+      warning("Losing coordinates in the dataset. Consider adding them back in
+              by modifying proc.attr.hydfab::write_meta_nldi_feat.")
+    }
+  }
+
+  if(base::grepl('parquet',tools::file_ext(path_meta))){
+    arrow::write_parquet(dt_site_feat,
+                         path_meta)
+  } else if(base::grepl('csv',tools::file_ext(path_meta))){
+    utils::write.csv(x=dt_site_feat,
+                     file=path_meta,
+                     row.names = FALSE)
+  } else {
+    stop("File extension is not in expected format of csv or parquet")
+  }
+  base::message(glue::glue("Wrote nldi location metadata to {path_meta}"))
+}
+
 
 check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TRUE){
   #' @title Check that attributes selected by user are available
@@ -753,5 +883,59 @@ check_attr_selection <- function(attr_cfg_path = NULL, vars = NULL, verbose = TR
     missing_vars <- NA
   }
   return(missing_vars)
+}
+
+hfab_config_opt <- function(hfab_config,
+                            reqd_hfab=c("s3_base","s3_bucket","hf_cat_sel","source")){
+  #' @title Configure hydrofabric-relevant optional params
+  #' @description If an argument provided in the config file is NULL, first look
+  #' for default param value from the \code{proc.attr_hydfab::proc_attr_hf}.
+  #' If that is NULL, then look for default value from the
+  #' \code{hfsubsetR::get_subset()} args if that param exists there. Otherwise,
+  #' uses default param value in \code{proc.attr_hydfab::proc_attr_wrap}.
+  #' @param hfab_config The hydrofabric-specific section from the config file, hydfab_config. list.
+  #' @param reqd_hfab The non-optional item names in the hydrofabric config file
+  #' @return List with default arguments populated corresponding to hfsubetR::get_subset(),
+  #' @export
+
+  # The values inside the hydrofabric configuration section from attr config file
+  vals_hfab_config <- lapply(hfab_config, function(x) x[[names(x)]])
+  names(vals_hfab_config) <-  base::lapply(hfab_config,
+                                           function(x) base::names(x)) %>%
+                base::unlist()
+  # The required variables in the hydfab_config section:
+
+  sub_hfab_config <- base::within(vals_hfab_config,base::rm(list=reqd_hfab))
+  names_sub_hfab <- names(sub_hfab_config)
+
+
+  xtra_cfig_hfab <- list()
+  for(n in names_sub_hfab){
+    x <- sub_hfab_config[[n]]
+    if(base::is.null(x)){
+      # Is this an argument inside proc_attr_hf()?
+      bool_in_proc_attr_hf <- n %in%
+        base::names(base::formals(proc.attr.hydfab::proc_attr_hf))
+      # Is this an argument inside proc_attr_wrap()?
+      bool_in_proc_attr_wrap <- n %in%
+        base::names(base::formals(proc.attr.hydfab::proc_attr_wrap))
+      # Is this an argument inside hsubsetR::get_subset()?
+      bool_in_get_subset <- n %in%
+        base::names(base::formals(hfsubsetR::get_subset))
+
+      # Goal: default to value inside proc_attr_hf if default not NULL
+      if (!base::is.null(base::formals(proc.attr.hydfab::proc_attr_hf)[[n]])){
+        xtra_cfig_hfab[[n]] <- base::formals(proc.attr.hydfab::proc_attr_hf)[[n]]
+      } else if (bool_in_get_subset) { # Otherwise use the default value in hfsubsetR::get_subset()
+        def_val <- base::formals(hfsubsetR::get_subset)[[n]]
+        xtra_cfig_hfab[[n]] <- def_val
+      } else if (bool_in_proc_attr_wrap){ # Otherwise Use the wrapper's default value
+        xtra_cfig_hfab[[n]] <- base::formals(proc.attr.hydfab::proc_attr_wrap)[[n]]
+      }
+    } else {
+      xtra_cfig_hfab[[n]] <- x
+    }
+  }
+  return(xtra_cfig_hfab)
 }
 

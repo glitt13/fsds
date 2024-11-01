@@ -46,10 +46,54 @@ Retr_Params <- list(paths = list(dir_db_hydfab=dir_db_hydfab,
                                  dir_std_base = dir_user),
                     vars = list(usgs_vars = usgs_vars,
                                 ha_vars = ha_vars),
-                    datasets = 'xssa-mini')
+                    datasets = 'xssa-mini',
+                    xtra_hfab = list(hf_version = "2.1.1",
+                                     hfab_retr = TRUE,
+                                     type='nextgen',
+                                     domain='conus'
+                                     ))
 # ---------------------------------------------------------------------------- #
 #                              UNIT TESTING
 # ---------------------------------------------------------------------------- #
+
+testthat::test_that("write_meta_nldi_feat", {
+  # TODO why does the write test fail?
+  dt_site_feat <- readRDS(file.path(dir_base,"nldi_site_feat.Rds"))
+  path_meta <- file.path(temp_dir, 'nldi_site_feat.parquet')
+
+  # This first checks for whether a warning is created
+  if(!base::dir.exists(dirname(path_meta))){
+    warn_rslt <- testthat::capture_condition(
+      proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                                             path_meta=path_meta))
+    testthat::expect_true(grepl("expect", warn_rslt$message))
+  }
+
+
+  rslt <- testthat::capture_condition(
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                                           path_meta=path_meta))
+  testthat::expect_true(grepl(path_meta, rslt$message))
+
+
+  files_exst <- base::list.files(base::dirname(path_meta))
+  testthat::expect_true(base::file.exists(path_meta))
+
+  path_meta_csv <- base::gsub(".parquet",replacement = ".csv",x=path_meta)
+  rslt_csv <- testthat::capture_condition(
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                path_meta=path_meta_csv))
+  testthat::expect_true(file.exists(path_meta_csv))
+
+  path_meta_fake_ext <- base::gsub(".parquet",replacement = ".fake",x=path_meta)
+  rslt_fake <- testthat::capture_condition(
+    proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat,
+                                           path_meta=path_meta_fake_ext))
+
+  testthat::expect_true(grepl("extension",rslt_fake$message))
+})
+
+
 testthat::test_that("proc_attr_std_hfsub_name standardized name generator", {
   testthat::expect_equal('hydrofab_testit_111.parquet',
                proc.attr.hydfab:::proc_attr_std_hfsub_name(111,"testit",'parquet'))
@@ -113,11 +157,11 @@ testthat::test_that('proc_attr_gageids',{
 testthat::test_that('check_attr_selection', {
   ## Using a config yaml
   # Test for requesting something NOT in the attr menu
-  attr_cfg_path_missing <- paste0(dir_base, '/xssa_attr_config_missing_vars.yaml')
+  attr_cfg_path_missing <- file.path(dir_base, 'xssa_attr_config_missing_vars.yaml')
   testthat::expect_message(testthat::expect_warning(expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path_missing), c("TOT_TWi", "TOT_POPDENS91"))))
 
   # Test for only requesting vars that ARE in the attr menu
-  attr_cfg_path <- paste0(dir_base, '/xssa_attr_config_all_vars_avail.yaml')
+  attr_cfg_path <- file.path(dir_base, '/xssa_attr_config_all_vars_avail.yaml')
   testthat::expect_message(testthat::expect_equal(proc.attr.hydfab::check_attr_selection(attr_cfg_path), NA))
 
 
@@ -311,11 +355,39 @@ testthat::test_that("proc_attr_exst_wrap", {
   # Testing for a comid that doesn't exist
   new_dir <- base::tempdir()
   ls_no_comid <- proc.attr.hydfab::proc_attr_exst_wrap(comid='notexist134',
-                                                      path_attrs=paste0(new_dir,'/newone/file.parquet'),
+                                                      path_attrs=file.path(new_dir,'newone','file.parquet'),
                                                       vars_ls=Retr_Params$vars,
                                                       bucket_conn=NA)
   testthat::expect_true(nrow(ls_no_comid$dt_all)==0)
   # Kinda-sorta running the test, but only useful if new_dir exists
   testthat::expect_equal(dir.exists(new_dir),
-                         dir.exists(paste0(new_dir,'/newone')))
+                         dir.exists(file.path(new_dir,'newone')))
+})
+
+testthat::test_that("hfab_config_opt",{
+  config_in <- yaml::read_yaml(file.path(dir_base, 'xssa_attr_config_all_vars_avail.yaml'))
+  reqd_hfab <- c("s3_base","s3_bucket","hf_cat_sel","source")
+  hfab_config <- proc.attr.hydfab::hfab_config_opt(config_in$hydfab_config,
+                                    reqd_hfab=reqd_hfab)
+
+  testthat::expect_true(!base::any(reqd_hfab %in% names(hfab_config)))
+
+  # A NULL hfab_retr is set to the default val in proc.attr.hydfab::proc_attr_wrap()
+  hfab_cfg_edit <- config_in$hydfab_config
+  names_cfg_edit <- lapply(hfab_cfg_edit, function(x) names(x)) %>% unlist()
+  idx_hfab_retr <- grep("hfab_retr", names_cfg_edit)
+  hfab_cfg_edit[[idx_hfab_retr]] <- list(hfab_retr = NULL)
+  testthat::expect_identical(base::formals(proc.attr.hydfab::proc_attr_wrap)$hfab_retr,
+                            proc.attr.hydfab::hfab_config_opt(hfab_cfg_edit,
+                                                                reqd_hfab=reqd_hfab)$hfab_retr)
+  # A NULL hf_version is set to the default val in proc_attr_wrap()
+  hfab_cfg_hfsubsetr <- config_in$hydfab_config
+  names_cfg_hfsubsetr <- lapply(hfab_cfg_hfsubsetr, function(x) names(x)) %>% unlist()
+  idx_hfver <- grep("hf_version", names_cfg_hfsubsetr)
+  hfab_cfg_hfsubsetr[[idx_hfver]] <- list(hf_version=NULL)
+
+  testthat::expect_identical(base::formals(hfsubsetR::get_subset)$hf_version,
+                             hfab_config_opt(hfab_cfg_hfsubsetr,
+                                             reqd_hfab=reqd_hfab)$hf_version)
+
 })
