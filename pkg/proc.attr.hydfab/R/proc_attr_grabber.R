@@ -464,7 +464,14 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
              revisit the configuration yaml file that processes this dataset in
             fs_proc: \n {featureSource}, and featureID={featureID}"))
     } else if (!is.null(site_feature)){
-      comid <- site_feature['comid']$comid
+      if(!base::is.na(site_feature['comid']$comid)){
+        comid <- site_feature['comid']$comid
+      } else {
+        message(glue::glue("Could not retrieve comid for {nldi_feat$featureID}.
+                           Attempting geospatial search."))
+        comid <- nhdplusTools::discover_nhdplus_id(point=site_feature$geometry)
+      }
+
       ls_comid[[gage_id]] <- comid
       # Retrieve the variables corresponding to datasets of interest & update database
       loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
