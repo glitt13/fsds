@@ -40,7 +40,8 @@ main <- function(){
   Retr_Params <- list(paths = list(dir_db_attrs = glue::glue("{home_dir}/noaa/regionalization/data/input/attributes/"),
                                    dir_std_base = glue::glue("{home_dir}/noaa/regionalization/data/input/user_data_std")),
                       vars = attrs_nhd,
-                      datasets = "camelsii_nhdp_grab_nov24")
+                      datasets = "camelsii_nhdp_grab_nov24",
+                      xtra_hfab = list(hfab_retr=FALSE))
 
 
   ############################ END CUSTOM MUNGING ##############################

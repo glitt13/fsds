@@ -513,19 +513,13 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
              revisit the configuration yaml file that processes this dataset in
             fs_proc: \n {featureSource}, and featureID={featureID}"))
     } else if (!is.null(site_feature)){
-<<<<<<< HEAD
       if(!base::is.na(site_feature['comid']$comid)){
         comid <- site_feature['comid']$comid
       } else {
-        message(glue::glue("Could not retrieve comid for {nldi_feat$featureID}.
-                           Attempting geospatial search."))
+        message(glue::glue("Could not retrieve comid for {nldi_feat$featureID}."))
         comid <- nhdplusTools::discover_nhdplus_id(point=site_feature$geometry)
+        message(glue::glue("Geospatial search found a comid value of: {comid}"))
       }
-
-=======
-      comid <- site_feature['comid']$comid
-      ls_site_feat[[gage_id]] <- site_feature
->>>>>>> upstream/main
       ls_comid[[gage_id]] <- comid
 
       # Retrieve the variables corresponding to datasets of interest & update database
@@ -533,6 +527,8 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
                                                     Retr_Params=Retr_Params,
                                                     lyrs=lyrs,overwrite=FALSE,
                                                     hfab_retr=hfab_retr))
+      loc_attrs$gage_id <- gage_id # Add the original identifier to dataset
+      ls_site_feat[[gage_id]] <- loc_attrs
       if("try-error" %in% class(loc_attrs)){
         message(glue::glue("Skipping gage_id {gage_id} corresponding to comid {comid}"))
       }
@@ -540,17 +536,16 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
       message(glue::glue("Skipping {gage_id}"))
     }
   }
-  just_comids <- ls_comid %>% unname() %>% unlist()
+  just_comids <- ls_comid %>% base::unname() %>% base::unlist()
 
   if(any(is.na(just_comids))){
-    idxs_na_comids <- which(is.na(just_comids))
+    idxs_na_comids <- base::which(base::is.na(just_comids))
     gage_ids_missing <- paste0(names(ls_comid[idxs_na_comids]), collapse = ", ")
     warning(glue::glue("The following gage_id values did not return a comid:\n
                        {gage_ids_missing}"))
   }
 
-  dt_site_feat <- data.table::rbindlist(ls_site_feat)
-  dt_site_feat$gage_id <- gage_ids # Add the original identifier to dataset
+  dt_site_feat <- data.table::rbindlist(ls_site_feat,fill = TRUE)
   return(dt_site_feat)
 }
 
