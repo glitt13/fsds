@@ -107,12 +107,12 @@ Retr_Params <- base::list(paths = base::list(
                    write_type = write_type
        )
 # PROCESS ATTRIBUTES
-ls_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrite = TRUE)
+dt_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrite = TRUE)
 
 # --------------------------- Compile attributes --------------------------- #
 # Demonstration of how to retrieve attributes/comids that exist inside dir_db_attrs:
 # The comids of interest
-comids <- ls_comids %>% base::unname() %>% base::unlist()
+comids <- dt_comids$featureID %>% base::unname() %>% base::unlist()
 
 # The attribute variables of interest
 vars <- Retr_Params$vars %>% base::unlist() %>% base::unname()
