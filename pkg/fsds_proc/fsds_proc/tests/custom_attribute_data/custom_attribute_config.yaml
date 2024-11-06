@@ -1,16 +1,18 @@
 # template for loading custom attributes
-file_output:   # where to save compiled data; accepted extensions are .csv and .parquet
-  - data/TEST_CUSTOM_OUT1.parquet
-file_id_subsets: # a .csv with a single column listing which gauges to keep (must match id_columns in files_in)
-    - tests/custom_attribute_data/id_subset.csv
+# where to save compiled data; accepted extensions are .csv and .parquet
+# file_output: tests/custom_attribute_data/TEST_CUSTOM_OUT1.csv
+# where to place output files
+dir_output: test/parq_out
+# a .csv with a single column listing which gauges to keep (must match id_columns in files_in)
+file_id_subsets: tests/custom_attribute_data/id_subset.csv
 # files_in defines the name of each file holding attributes of interest, and specifies column names of interest for each file
 # accepted file extensions include csv, txt, xlsx, xlsm
 files_in: # May define {home_dir} for python's '{home_dir}/string_path'.format(home_dir =str(Path.home())) functionality
   C:/Projects/NOAA_NWM/Data/CAMELS/camels_clim.txt:
-    separator: # tries ',', ';', ' ', '\t' if not provided for txt file
-      - ;
-    id_column:
-      - gauge_id
+  # tries ',', ';', ' ', '\t' if not provided for txt file
+    separator: ;
+    attr_dataset_id: CAMELS # an id indicating the dataset(s) from which these data originated
+    id_column: gauge_id # column holding site id for this tab or file
     attr_columns:
       - p_mean
       - pet_mean
@@ -24,8 +26,8 @@ files_in: # May define {home_dir} for python's '{home_dir}/string_path'.format(h
       - low_prec_dur
       - low_prec_timing
   C:/Projects/NOAA_NWM/Data/CAMELS/camels_geol.txt:
-    id_column:
-      - gauge_id
+    attr_dataset_id: CAMELS
+    id_column: gauge_id
     attr_columns:
       - geol_1st_class
       - glim_1st_class_frac
@@ -36,9 +38,10 @@ files_in: # May define {home_dir} for python's '{home_dir}/string_path'.format(h
       - geol_permeability
   C:/Projects/NOAA_NWM/Data/GAGESii/basinchar_and_report_sept_2011/gagesII_sept30_2011_conterm.xlsx:
     tabs:
+      
       BasinID:
-        id_column:
-          - STAID
+        attr_dataset_id: GAGESII
+        id_column: STAID
         attr_columns:
           - DRAIN_SQKM
           - HUC02
@@ -49,14 +52,14 @@ files_in: # May define {home_dir} for python's '{home_dir}/string_path'.format(h
           - HCDN-2009 
           - HBN36
       Bas_Classif:
-        id_column:
-          - STAID
+        attr_dataset_id: GAGESII
+        id_column: STAID
         attr_columns:
           - CLASS
           - AGGECOREGION
       Climate:
-        id_column:
-          - STAID
+        attr_dataset_id: GAGESII
+        id_column: STAID
         attr_columns:
           - PPTAVG_BASIN
           - T_AVG_SITE
@@ -71,11 +74,13 @@ attribute_metadata:  # NOTE: what ends up in file
   - dataset_versions: # must be identifier for the version or release for each source_dataset
     - v1
     - v1
-  - source_datasets_references: 'https://ral.ucar.edu/solutions/products/camels, https://pubs.usgs.gov/publication/70046617'
+  - source_datasets_references: 
+    - 'https://ral.ucar.edu/solutions/products/camels, https://pubs.usgs.gov/publication/70046617'
     - 'notes': 'e.g., data was generated for project xxx funded by xxx'
   - date_submitted: automate w/timestamp
   - version: 
   - processing_notes: 'gge processing' # '
+  # please provide a readme file (i.e., README.txt) with information about how your attributes were developed.
   - readme_location: hold??datasource_datasourceversion.txt
 references: # All optional but **very** helpful metadata
   - 'source_url': 'NA'

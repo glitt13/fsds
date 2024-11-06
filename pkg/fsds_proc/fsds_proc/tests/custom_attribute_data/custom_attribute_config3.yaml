@@ -1,13 +1,11 @@
 # template for loading custom attributes
-file_output:   # where to save compiled data
-  - data/TEST_CUSTOM_OUT3.csv
+file_output: tests/custom_attribute_data/TEST_CUSTOM_OUT3.csv  # where to save compiled data
 
 # files_in defines the name of each file holding attributes of interest, and specifies column names of interest for each file
 # accepted file extensions include csv, txt, xlsx, xlsm
 files_in: # May define {home_dir} for python's '{home_dir}/string_path'.format(home_dir =str(Path.home())) functionality
   C:/Projects/NOAA_NWM/Data/GAGESii/basinchar_and_report_sept_2011/gagesII_sept30_2011_conterm.xlsx:
-    id_column: # column holding site id for this tab or file
-      - STAID
+    id_column: STAID # column holding site id for this tab or file
     attr_columns: # columns holding attributes
       - DRAIN_SQKM
       - HUC02
