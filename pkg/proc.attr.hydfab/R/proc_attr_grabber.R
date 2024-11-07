@@ -371,7 +371,7 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hf
     net$hf_id <- comid
   }
 
-
+  # TODO make path_attrs a function
   path_attrs <- base::file.path(Retr_Params$paths$dir_db_attrs,
                           base::paste0("comid_",comid,"_attrs.parquet"))
   vars_ls <- Retr_Params$vars

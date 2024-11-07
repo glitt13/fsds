@@ -38,7 +38,7 @@ dir_db_attrs = attr_cfig.attrs_cfg_dict.get('dir_db_attrs')
 path_comid = Path(fio) #TODO adjust this to fio contents
 comid_col = 'comid' # TODO adjust this to fio 
 
-# TODO allow reading in comid file based 1) standardized dataset (e.g. post-fs_proc), and 2) custom file (e.g. predictions)
+# TODO read in comid from custom file (e.g. predictions)
 
 # TODO read in file for comids. Allow .csv or .parquet format
 if 'csv' in path_comid.suffix():
@@ -49,6 +49,9 @@ else:
     raise ValueError("Expecting path to file containing comids to be csv or parquet file")
 
 comids = 
+
+# TODO read in comid from standardized dataset (e.g. post-fs_proc)
+
 
 # TODO define comids and loop (likely place in a wrapper)
 
