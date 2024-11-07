@@ -71,7 +71,7 @@ class AttrConfigAndVars:
 
 
 def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterable, attrs_sel: str | Iterable = 'all',
-                       _s3 = None,storage_options=None,read_type=['all','filename'][0])-> pd.DataFrame:
+                       _s3 = None,storage_options=None,read_type:str=['all','filename'][0])-> pd.DataFrame:
     """Read attribute data acquired using proc.attr.hydfab R package & subset to desired attributes
 
     :param dir_db_attrs: directory where attribute .parquet files live
@@ -84,6 +84,9 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
     :type _s3: future feature, optional
     :param storage_options: future feature, defaults to None
     :type storage_options: future feature, optional
+    :param read_type: should all parquet files be lazy-loaded, assign 'all'
+     otherwise just files with comids_resp in the file name? assign 'filename'. Defaults to 'all'
+    :type read_type: str
     :return: dict of the following keys:
         - `attrs_sel`
         - `dir_db_attrs`
