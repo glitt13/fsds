@@ -4,8 +4,8 @@
 - file_io:
     - name_attr_config: 'xssa_attr_config.yaml' # The filename of the attribute configuration file, expected to contain the dir_db_attrs: The parent dir where each comid's attribute parquet file is stored in the subdirectory 'comid/', and each dataset's aggregated parquet attributes are stored in the subdirectory '/{dataset_name}
     - dir_db_tfrm: '{dir_base}/attributes_tfrm' #{dir_db_attrs}
-    - path_comids: '{home_dir}/' # File path to the file containing comids. May be .parquet or .csv format 
-    - colname_comid: 'COMID' 
+    - path_comids: '{home_dir}/noaa/regionalization/data/input/user_data_std/camelsii_nhdp_grab_24nov05/nldi_feat_camelsii_nhdp_grab_24nov05_camels.csv' # File path to the file containing comids. May be .parquet or .csv format 
+    - colname_comid: 'featureID' 
 - transform_attrs:
   - 'TOT_PROGLACIAL_SED_{tform_type}':
     - tform_type: [sum]
@@ -33,7 +33,7 @@
       - TOT_SOLLER_451
       - TOT_SOLLER_452
   - 'TOT_WB5100_yr_{tform_type}': 
-    - tform_type: [mean]
+    - tform_type: [np.mean]
     - var_desc: "The {tform_type} historic housing density from 1980 to 2010"
     - vars:
       - TOT_NLCD06_41
@@ -56,7 +56,7 @@
       - TOT_WB5100_NOV
       - TOT_WB5100_DEC
   - 'TOT_HDENS_8010_{tform_type}': 
-    - tform_type: [mean]
+    - tform_type: [np.mean]
     - var_desc: "The {tform_type} historic housing density from 1980 to 2010"
     - vars:
       - TOT_HDENS10
