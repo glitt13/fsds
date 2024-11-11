@@ -38,7 +38,6 @@ files_in: # May define {home_dir} for python's '{home_dir}/string_path'.format(h
       - geol_permeability
   C:/Projects/NOAA_NWM/Data/GAGESii/basinchar_and_report_sept_2011/gagesII_sept30_2011_conterm.xlsx:
     tabs:
-      
       BasinID:
         attr_dataset_id: GAGESII
         id_column: STAID

@@ -8,6 +8,12 @@ notes:: developed using python v3.11.8; created 2024/08/02
 '''
 
 # TODO:
+# MAYBE
+'''
+create and keep updated an databse relating gage_ids with comids
+'''
+
+# TODO:
 # - metadata (user provied)
 # - unit tests
 # error or warning if id's are provided that do not appear in data
@@ -17,14 +23,17 @@ notes:: developed using python v3.11.8; created 2024/08/02
 import warnings
 import os
 # from glob import glob (Keith is gone)
-# from pathlib import Path
+from pathlib import Path
 # import shutil
 import pandas as pd
 import yaml
 # from fsds_proc import data
 from openpyxl import load_workbook
+from pynhd import NLDI
 # from openpyxl.utils.exceptions import InvalidFileException
 
+# Ensure all warnings are shown
+# warnings.simplefilter("always")
 
 ######################################################################
 
@@ -135,7 +144,9 @@ def check_config_valid(config_main):
         keys_file = list(config_main['files_in'][file].keys())
         print(f'keys_file: {keys_file}')
         if extension in ['txt', 'csv']:
+            # id keys accepted in txt or csv files but not appearing in keys
             in_expected = [x for x in txtcsv_accepted if x not in keys_file]
+            # id keys in config keys, but not included in txt expected
             in_temp = [x for x in keys_file if x not in txtcsv_accepted]
 
             if len(in_expected) == 1 and in_expected[0] == 'separator':
@@ -159,16 +170,18 @@ def check_config_valid(config_main):
                 message_out2 = message_temp
 
         elif extension in ['xlsx', 'xlsm']:
+            # id keys accepted in excel files but not appearing in keys
             in_expected = [x for x in xl_accepted if x not in keys_file]
-            in_xl = [x for x in keys_file if x not in xl_accepted]
+            # id keys in config keys, but not included in txt expected
+            # in_xl = [x for x in keys_file if x not in xl_accepted]
 
             if len(in_expected) == 1 and in_expected[0] == 'tabs':
                 warnings.warn(
                     f"\ntabs were not provided for {file} so data in\n"
                     "the first tab will be used."
                 )
-            if ((len(in_expected) == 1 and in_expected[0] != 'tabs') or
-                    len(in_expected) > 1):
+
+            if ((len(in_expected) == 1 and in_expected[0] != 'tabs')):
                 message_temp = (
                     'You did not provide the following expected keys for \n'
                     f'  {file}:\n    {in_expected}\n'
@@ -200,8 +213,6 @@ def check_config_valid(config_main):
                 in_tab = [x for x in keys_tab if x not in tabs_allowed]
 
                 # handle case where attr_dataset_id provided for file and tab
-                print(f'keys_tab: {keys_tab}')
-                print(f'in_tab: {in_tab}')
                 if ('attr_dataset_id' in keys_file and
                         'attr_dataset_id' in keys_tab):
                     warnings.warn(
@@ -256,13 +267,13 @@ def check_columns_present(dict_config: dict,
     in df_data. First checks if id column is present, then checks
     if attribute columns are present.
     If specified columns are not present then an error is thrown.
-    
+
     Inputs
     -------------------
     dict_config (dict): dictionary generated when custom_attribute_config.yaml
-        is read in. 
+        is read in.
     df_data (pandas DataFrame): a pandas dataframe expected to contain columns
-        with a gage_id column name and attribute column names specified in 
+        with a gage_id column name and attribute column names specified in
         dict_config
     gage_id_col (str): Name of column that holds values to be used as IDs
     file (str): name of file from which df_data was read in
@@ -319,7 +330,7 @@ def process_txt_csv(dict_config: dict,
     Inputs
     ----------------
     dict_config (dict): dictionary generated when custom_attribute_config.yaml
-        is read in and subset to specific file in files_in. 
+        is read in and subset to specific file in files_in.
     file (str): name of file from which data will be read in
     ids_subset (list): list of gauge ids used to subset data
 
@@ -328,6 +339,9 @@ def process_txt_csv(dict_config: dict,
     df (pd.DataFrame): Dataframe containing data from file and processed 
         according to dict_config
     '''
+
+    # convert file to Path object
+    file_path = Path(file)
 
     # get gage_id column name so it can be read in as string in case
     # there are leading 0's
@@ -347,7 +361,7 @@ def process_txt_csv(dict_config: dict,
         # read in file
         try:
             df = pd.read_csv(
-                file,
+                file_path,
                 sep=separator,
                 dtype={gage_id_temp: str},
                 usecols=[gage_id_temp] + dict_config['attr_columns']
@@ -363,7 +377,7 @@ def process_txt_csv(dict_config: dict,
         # sep=None uses python csv sniffer to id separator
         try:
             df = pd.read_csv(
-                file,
+                file_path,
                 sep=None,
                 engine='python',
                 dtype={gage_id_temp: str},
@@ -379,7 +393,7 @@ def process_txt_csv(dict_config: dict,
         x: attr_data_id for x in df.columns if x != gage_id_temp
     }
 
-    dict_temp['source_file'] = os.path.basename(file)
+    dict_temp['source_file'] = file_path.name
 
     # check that listed columns match current file columns
     check_columns_present(dict_config, df, gage_id_temp, file)
@@ -399,9 +413,10 @@ def process_excel(dict_config: dict,
     Inputs
     ----------------
     dict_config (dict): dictionary generated when custom_attribute_config.yaml
-        is read in. 
+        is read in.
     file (str): name of file from which data will be read in
-    tabs_included (boolean): True if tabs provided in config yaml, otherwise False
+    tabs_included (boolean): True if tabs provided in config yaml,
+        otherwise False
     ids_subset (list): list of gauge ids used to subset data
 
     Outputs
@@ -422,20 +437,26 @@ def process_excel(dict_config: dict,
         raise exc
 
     # get dataset id
-    try:
-        attr_data_id = dict_config['attr_dataset_id']
-    except KeyError:
-        warnings.warn(
-            f'attr_data_id not provided for {file},\n'
-            '   so using value provided for tab.\n'
-            )
+    # print(f'dict_config.keys(): {dict_config.keys()}')
+    # try:
+    #     attr_data_id = dict_config['attr_dataset_id']
+    #     print(f'attr_data_id: {attr_data_id}')
+    # except Exception as exc:  # KeyError:
+    #     raise exc
+        # warnings.warn(
+        #     f'attr_data_id not provided for {file},\n'
+        #     '   so using value provided for tab.\n'
+        #     )
+
+    print(f'dict_config.keys: {dict_config.keys()}')
 
     if tabs_included:
 
         # get list of tabs associated with current file
         tabs_temp = list(dict_config['tabs'].keys())
 
-        # create dict to hold gage_id_column for each tab-used for mergin in end
+        # create dict to hold gage_id_column for each tab-used for merging
+        # in end
         dict_gg_temp = {x: [] for x in tabs_temp}
 
         # create empty list to store data from tabs in
@@ -449,6 +470,18 @@ def process_excel(dict_config: dict,
             if 'attr_dataset_id' in dict_config['tabs'][tab].keys():
                 print(f'\nattr_dataset_id found for {tab}.\n')
                 attr_data_id = dict_config['tabs'][tab]['attr_dataset_id']
+            elif 'attr_dataset_id' in dict_config.keys():
+                print(f'\nattr_dataset_id NOT found for {tab}.\n'
+                      ' But it was found at top-level keys.')
+                attr_data_id = dict_config['attr_dataset_id']
+            else:
+                raise KeyError(
+                    'attr_dataset_id is required, but was not found at the\n'
+                    f'  top-level keys nor under tab ({tab}).\n'
+                    '   Please update your configuration file to include\n'
+                    '   "attr_dataset_id" which identifies the dataset from\n'
+                    '   which this data comes.'
+                )
 
             # get gage_id column name so it can be read in as string in case
             # there are leading 0's
@@ -549,6 +582,11 @@ def process_excel(dict_config: dict,
         # subet df to cols_keep
         df = df[cols_keep]
 
+        # print(f'dict_config: {dict_config}')
+        try:
+            attr_data_id = dict_config['attr_dataset_id']
+        except Exception as exc:
+            raise exc
         dict_temp = {
                 x: attr_data_id for x in df.columns if x != gage_id_temp
             }
@@ -586,7 +624,7 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
     # check configuration file seems correct
     check_config_valid(config)
 
-    # process configuration file
+    # process configuration file  
 
     # check if file with ids for subsetting data are provided
     subset_ids = None
@@ -671,6 +709,7 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
 
     # keep only one id column
     if isinstance(gage_id_cols, list) and len(set(gage_id_cols)) > 1:
+        print('removing extra gage id columns')
         df_out = df_out.drop(list(set(gage_id_cols))[1:], axis=1)
 
     # TODO: modify to write out standardized parquets to dir_out
@@ -686,20 +725,45 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
 
     # convert dataframe to long format, then loop through and write
     # data for each id to parquet
-    print(f'df_out: {df_out}')
-    print(f'gage_id_cols: {gage_id_cols[0]}')
     df_out = pd.melt(
         df_out,
-        id_vars=gage_id_cols[0],
+        id_vars=(gage_id_cols[0] if isinstance(gage_id_cols, list) else
+                 gage_id_cols),
         value_vars=[x for x in df_out.columns if x != gage_id_cols[0]],
-        var_name='ID',
-        value_name='Variable'
+        var_name='attribute',
+        value_name='value'
     )
+
+    #####
+    # loop through all unique gauge ids and get associated comids
+    #####
+    # instantiate an instance of NLDI
+    nldi = NLDI()
+
+    # define dict to hold gauge_ids and associated comids
+    dict_comids = {x: [] for x in df_out.gauge_id.unique()}
+    for gg_id in dict_comids.keys():
+        # Get comid for current gg_id
+        comid = nldi.comid_byloc(
+            nldi.coords_byid('nwissite', f'USGS-{gg_id}')
+            )
+        comid = nldi.navigate_byid(
+            fsource='nwissite',
+            fid=f'USGS-{gg_id}',
+            navigation='upstreamMain',
+            source='flowlines',
+            distance=1
+        )
+        print(comid)
     # TODO: use dict_Vars to add variable source info to dataframe
     # add data information to dataframe
     # df_out['']
 
     # write a parquet file for each gauge_id
+
+    print('\n===================================\n'
+          'Processing Complete'
+          '\n===================================\n')
 
     return df_out
     # return config
@@ -710,7 +774,7 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
 
 if __name__ == '__main__':
     test1 = process_custom_attributes(
-        'tests/custom_attribute_data/custom_attribute_config.yaml'
+        './tests/custom_attribute_data/custom_attribute_config.yaml'
         )
     # test2 = process_custom_attributes(
     #     'tests/custom_attribute_data/custom_attribute_config2.yaml'
@@ -718,11 +782,16 @@ if __name__ == '__main__':
     # test3 = process_custom_attributes(
     #     'tests/custom_attribute_data/custom_attribute_config3.yaml'
     #     )
+    # df_test1 = pd.read_csv(
+    #     'tests/custom_attribute_data/TEST_CUSTOM_OUT1.csv',
+    #     dtype={'STAID': str}
+    #     )
+    # df_test2 = pd.read_csv(
+    #     'tests/custom_attribute_data/TEST_CUSTOM_OUT2.csv',
+    #     dtype={'STAID': str}
+    #     )
 
-    # df_test = pd.read_parquet(
-    # 'tests/custom_attribute_data/TEST_CUSTOM_OUT1.parquet'
-    # )
-    df_test = pd.read_csv(
-        'tests/custom_attribute_data/TEST_CUSTOM_OUT3.csv',
-        dtype={'STAID': str}
-        )
+    # df_test3 = pd.read_csv(
+    #     'tests/custom_attribute_data/TEST_CUSTOM_OUT3.csv',
+    #     dtype={'STAID': str}
+    #     )

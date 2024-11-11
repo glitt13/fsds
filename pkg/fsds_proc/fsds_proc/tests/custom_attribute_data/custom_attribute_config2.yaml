@@ -1,5 +1,5 @@
 # template for loading custom attributes
-file_output: tests/custom_attribute_data/TEST_CUSTOM_OUT2.csv  # where to save compiled data
+dir_output: tests/custom_attribute_data/TEST_CUSTOM_OUT2.csv  # where to save compiled data
 file_id_subsets: tests/custom_attribute_data/id_subset.csv # a .csv with a single column listing which gauges to keep (must match id_columns in files_in)
 # files_in defines the name of each file holding attributes of interest, and specifies column names of interest for each file
 # accepted file extensions include csv, txt, xlsx, xlsm
