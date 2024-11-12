@@ -99,7 +99,7 @@ if __name__ == "__main__":
         #%% IDENTIFY NEEDED ATTRIBUTES/FUNCTIONS
         # ALL attributes for a given comid, read using a file
         all_attr_ddf = fta._subset_ddf_parquet_by_comid(dir_db_attrs,
-                                        fp_struct=comid)
+                                        fp_struct=str(comid))
 
         # Identify the needed functions based on querying the comid's attr data's 'data_source' column
         #  Note the custom attributes used the function string as the 'data_source'
@@ -125,7 +125,7 @@ if __name__ == "__main__":
             attrs_retr_sub = dict_retr_vars.get(new_var)
             
             # Retrieve the variables of interest for the function
-            df_attr_sub = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[comid], attrs_sel=attrs_retr_sub,
+            df_attr_sub = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel=attrs_retr_sub,
                             _s3 = None,storage_options=None,read_type='filename')
             
             # Apply transformation

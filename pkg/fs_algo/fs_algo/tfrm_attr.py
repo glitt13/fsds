@@ -3,7 +3,6 @@ import yaml
 import pandas as pd
 from pathlib import Path
 import fs_algo.fs_algo_train_eval as fsate
-import ast
 from collections.abc import Iterable
 
 from typing import Callable
@@ -176,7 +175,7 @@ def _subset_ddf_parquet_by_comid(dir_db_attrs: str | os.PathLike,
     """
 
     # Based on the structure of comid
-    fp = list(Path(dir_db_attrs).rglob('*'+fp_struct+'*') )
+    fp = list(Path(dir_db_attrs).rglob('*'+str(fp_struct)+'*') )
     if fp:
       all_attr_ddf = dd.read_parquet(fp, storage_options = None)
     else:
@@ -369,3 +368,106 @@ def _id_need_tfrm_attrs(all_attr_ddf: dd.DataFrame,
                             'funcs': ls_need_funcs}
 
     return dict_need_vars_funcs
+
+import unittest
+from unittest.mock import patch, MagicMock
+import pandas as pd
+import dask.dataframe as dd
+import itertools
+
+class TestTransformationFunctions(unittest.TestCase):
+
+    @patch("your_module._get_function_from_string")
+    @patch("your_module._sub_tform_attr_ddf")
+    @patch("your_module._gen_tform_df")
+    def test_proc_tfrm_cfg(self, mock_gen_tform_df, mock_sub_tform_attr_ddf, mock_get_function_from_string):
+        from your_module import proc_tfrm_cfg
+        
+        # Mock transformation configuration
+        tfrm_cfg = [
+            {
+                'transform_attrs': [
+                    {'attr1': [{'tform_type': ['sum']}, {'var_desc': 'Sum of values'}, {'vars': ['var1', 'var2']}]}
+                ]
+            }
+        ]
+        
+        # Mock index, DataFrame, and function behavior
+        idx_tfrm_attrs = 0
+        df_mock = pd.DataFrame({"attribute": ["var1", "var2"], "value": [1.0, 2.0]})
+        all_attr_ddf = dd.from_pandas(df_mock, npartitions=1)
+        mock_sub_tform_attr_ddf.return_value = pd.Series([3.0])
+        
+        mock_gen_tform_df.return_value = pd.DataFrame({"attribute": ["attr1_sum"], "value": [3.0]})
+        
+        # Run the function
+        result = proc_tfrm_cfg(tfrm_cfg, idx_tfrm_attrs, all_attr_ddf)
+        
+        # Assertions
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertEqual(result["attribute"].iloc[0], "attr1_sum")
+        self.assertEqual(result["value"].iloc[0], 3.0)
+        
+        # Check if internal functions were called
+        mock_get_function_from_string.assert_called_once_with("sum")
+        mock_sub_tform_attr_ddf.assert_called_once()
+        mock_gen_tform_df.assert_called_once()
+
+    def test_retr_cstm_funcs(self):
+        from your_module import _retr_cstm_funcs
+
+        # Mock transformation configuration dictionary
+        tfrm_cfg_attrs = {
+            'transform_attrs': [
+                {'attr1': [{'tform_type': ['sum', 'mean']}, {'vars': ['var1', 'var2']}]}
+            ]
+        }
+
+        result = _retr_cstm_funcs(tfrm_cfg_attrs)
+        
+        # Assertions
+        self.assertIsInstance(result, dict)
+        self.assertIn('dict_all_cstm_vars', result)
+        self.assertIn('dict_cstm_func', result)
+        self.assertIn('dict_tfrm_func', result)
+        self.assertIn('dict_tfrm_func_objs', result)
+        self.assertIn('dict_retr_vars', result)
+
+        # Verify the specific values in the dictionaries
+        self.assertEqual(result['dict_all_cstm_vars'], {'attr1_sum': 'attr1_sum', 'attr1_mean': 'attr1_mean'})
+        self.assertEqual(result['dict_cstm_func'], {'attr1_sum': 'sum', 'attr1_mean': 'mean'})
+        self.assertEqual(result['dict_tfrm_func'], {'attr1_sum': 'sum', 'attr1_mean': 'mean'})
+        self.assertEqual(result['dict_retr_vars'], {'attr1_sum': ['var1', 'var2'], 'attr1_mean': ['var1', 'var2']})
+
+    @patch("dask.dataframe.DataFrame.compute")
+    def test_id_need_tfrm_attrs(self, mock_compute):
+        from your_module import _id_need_tfrm_attrs
+
+        # Mock Dask DataFrame
+        df_mock = pd.DataFrame({
+            "featureID": [12345, 12345],
+            "attribute": ["existing_attr1", "existing_attr2"],
+            "data_source": ["src1", "src2"]
+        })
+        all_attr_ddf = dd.from_pandas(df_mock, npartitions=1)
+        mock_compute.side_effect = [
+            pd.Series([1]),  # Simulate single unique location
+            pd.Series(["existing_attr1", "existing_attr2"]),
+            pd.Series(["src1", "src2"])
+        ]
+        
+        # Define the custom vars and funcs to check for missing
+        ls_all_cstm_vars = ["new_attr1", "existing_attr1"]
+        ls_all_cstm_funcs = ["src1", "new_src"]
+
+        # Run the function
+        result = _id_need_tfrm_attrs(all_attr_ddf, ls_all_cstm_vars, ls_all_cstm_funcs)
+        
+        # Assertions
+        self.assertEqual(result, {
+            'vars': ["new_attr1"],  # "existing_attr1" is already present, so only "new_attr1" is missing
+            'funcs': ["new_src"]    # "src1" is already present, so only "new_src" is missing
+        })
+
+if __name__ == "__main__":
+    unittest.main()
