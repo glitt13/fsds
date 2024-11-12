@@ -1,5 +1,9 @@
-# If additional attribute transformations desired, the natural step in the workflow
-#  is after the attributes have been acquired, and before running fs_proc_algo.py 
+# If attribute aggregation & transformations desired, run the 
+# attribute transform as the  step in the workflow following
+# attribute grabbing, which is before the fs_proc_algo.py
+# Refer to the example config file, e.g. 
+# `Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml')`
+
 
 import argparse
 import yaml
@@ -83,19 +87,7 @@ if __name__ == "__main__":
     # vars: The dict of attributes to aggregate for each custom variable name
     dict_retr_vars = dict_cstm_vars_funcs.get('dict_retr_vars')
 
-    # TODO create a wrapper function for all steps in config transformation??
-    # proc_tfrm_cfg(tfrm_cfg= tfrm_cfg, idx_tfrm_attrs: int,
-                    #    all_attr_ddf=all_attr_ddf))
     for comid in comids:
-        # Filepath substring structures based on comids 
-        # THIS IS INTENDED TO BE A HARD-CODED FILENAME STRUCTURE!!
-        # fp_struct_tfrm=f'_{comid}_tfrmattr' # The unique string in the filepath name based on custom attributes created by RaFTS users
-
-        # # Lazy load dask df of transform attributes for a given comid
-        # tfrm_attr_ddf =  fta._subset_ddf_parquet_by_comid(dir_db_attrs=dir_db_attrs,
-        #                                             fp_struct=fp_struct_tfrm)
-        
-   
         #%% IDENTIFY NEEDED ATTRIBUTES/FUNCTIONS
         # ALL attributes for a given comid, read using a file
         all_attr_ddf = fta._subset_ddf_parquet_by_comid(dir_db_attrs,
@@ -133,6 +125,11 @@ if __name__ == "__main__":
             attr_val = fta._sub_tform_attr_ddf(all_attr_ddf=all_attr_ddf, 
                         retr_vars=attrs_retr_sub, func = func_tfrm)
             
+            if pd.isnull(attr_val):
+                raise ValueError(f"Unexpected NULL value returned after
+                                  aggregating and transforming attributes.
+                                  Inspect {new_var} with comid {comid}")
+
             # Populate new values in the new dataframe
             new_df = fta._gen_tform_df(all_attr_ddf=all_attr_ddf, 
                                 new_var_id=new_var,
