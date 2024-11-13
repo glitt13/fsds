@@ -37,6 +37,22 @@ from pynhd import NLDI
 
 ######################################################################
 
+
+def get_comid_for_gauge(gauge_id):
+    '''return comid for a given gauge id'''
+    nldi = NLDI()
+    try:
+        # Get the feature information for the gauge
+        feature = nldi.getfeature_byid("nwissite", f"USGS-{gauge_id}")
+        comid = feature['comid']
+
+        return comid[0]
+
+    except Exception as exc:
+        print(f"Error finding comid for gauge {gauge_id}: {exc}")
+        return None
+
+
 def check_config_valid(config_main):
     '''
     Check that configuration file is valid
@@ -101,18 +117,6 @@ def check_config_valid(config_main):
 
         raise ValueError(message_out)
 
-    # TODO: Prolly remove since outputing statndard parquet files
-    # out_extension = config_main['file_output'].split('.')[
-    #     len(config_main['file_output'].split('.'))-1
-    #     ]
-
-    # if out_extension not in ['csv', 'parquet']:
-    #     message_out = (
-    #         "Allowed file extensions for the output file are .csv or\n"
-    #         f"    .parquet. You provided '.{out_extension}'."
-    #     )
-    #     raise ValueError(message_out)s
-
     # check if csv with subset of IDs provided. If so, check extension is csv
     if 'file_id_subsets' in keys_1st:
         id_temp = config_main['file_id_subsets']
@@ -124,15 +128,13 @@ def check_config_valid(config_main):
             )
 
     # check input files seem correct
-
-    # get listed files
-
     # define list of required keys for .txt/.csv and .xlsx/.xlsm
     txtcsv_accepted = [
         'separator', 'id_column', 'attr_dataset_id', 'attr_columns'
         ]
     xl_accepted = ['tabs', 'id_column', 'attr_dataset_id', 'attr_colums']
 
+    # get listed files
     listed_files = list(config_main['files_in'].keys())
 
     # messages will be updated as errors are found
@@ -172,8 +174,6 @@ def check_config_valid(config_main):
         elif extension in ['xlsx', 'xlsm']:
             # id keys accepted in excel files but not appearing in keys
             in_expected = [x for x in xl_accepted if x not in keys_file]
-            # id keys in config keys, but not included in txt expected
-            # in_xl = [x for x in keys_file if x not in xl_accepted]
 
             if len(in_expected) == 1 and in_expected[0] == 'tabs':
                 warnings.warn(
@@ -181,7 +181,7 @@ def check_config_valid(config_main):
                     "the first tab will be used."
                 )
 
-            if ((len(in_expected) == 1 and in_expected[0] != 'tabs')):
+            if len(in_expected) == 1 and in_expected[0] != 'tabs':
                 message_temp = (
                     'You did not provide the following expected keys for \n'
                     f'  {file}:\n    {in_expected}\n'
@@ -436,18 +436,6 @@ def process_excel(dict_config: dict,
     except Exception as exc:
         raise exc
 
-    # get dataset id
-    # print(f'dict_config.keys(): {dict_config.keys()}')
-    # try:
-    #     attr_data_id = dict_config['attr_dataset_id']
-    #     print(f'attr_data_id: {attr_data_id}')
-    # except Exception as exc:  # KeyError:
-    #     raise exc
-        # warnings.warn(
-        #     f'attr_data_id not provided for {file},\n'
-        #     '   so using value provided for tab.\n'
-        #     )
-
     print(f'dict_config.keys: {dict_config.keys()}')
 
     if tabs_included:
@@ -527,7 +515,6 @@ def process_excel(dict_config: dict,
             if ids_subset and len(ids_subset) > 0:
                 df = df.query(f"{gage_id_temp} in {ids_subset}")
 
-            print("IS IT HERE")
             dict_temp_inner = {
                 x: attr_data_id for x in df.columns if x != gage_id_temp
             }
@@ -535,8 +522,6 @@ def process_excel(dict_config: dict,
             dict_temp_inner['source_file'] = os.path.basename(file)
 
             dict_temp = {**dict_temp, **dict_temp_inner}
-
-            print("OR IS IT HERE")
 
         for tab in tabs_temp[1:]:
             df = pd.merge(
@@ -582,7 +567,6 @@ def process_excel(dict_config: dict,
         # subet df to cols_keep
         df = df[cols_keep]
 
-        # print(f'dict_config: {dict_config}')
         try:
             attr_data_id = dict_config['attr_dataset_id']
         except Exception as exc:
@@ -708,9 +692,11 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
         )
 
     # keep only one id column
-    if isinstance(gage_id_cols, list) and len(set(gage_id_cols)) > 1:
+    # get list of colnames appearing in gage_id_cols
+    gg_cols = df_out.columns.intersection(gage_id_cols)
+    if len(gg_cols) > 1:
         print('removing extra gage id columns')
-        df_out = df_out.drop(list(set(gage_id_cols))[1:], axis=1)
+        df_out = df_out.drop(gg_cols[1:], axis=1)
 
     # TODO: modify to write out standardized parquets to dir_out
     # out_extension = config['file_output'].split('.')[
@@ -727,9 +713,8 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
     # data for each id to parquet
     df_out = pd.melt(
         df_out,
-        id_vars=(gage_id_cols[0] if isinstance(gage_id_cols, list) else
-                 gage_id_cols),
-        value_vars=[x for x in df_out.columns if x != gage_id_cols[0]],
+        id_vars=gg_cols[0],
+        value_vars=[x for x in df_out.columns if x != gg_cols[0]],
         var_name='attribute',
         value_name='value'
     )
@@ -737,29 +722,33 @@ def process_custom_attributes(config_file: str | os.PathLike) -> pd.DataFrame:
     #####
     # loop through all unique gauge ids and get associated comids
     #####
-    # instantiate an instance of NLDI
-    nldi = NLDI()
 
-    # define dict to hold gauge_ids and associated comids
-    dict_comids = {x: [] for x in df_out.gauge_id.unique()}
-    for gg_id in dict_comids.keys():
-        # Get comid for current gg_id
-        comid = nldi.comid_byloc(
-            nldi.coords_byid('nwissite', f'USGS-{gg_id}')
-            )
-        comid = nldi.navigate_byid(
-            fsource='nwissite',
-            fid=f'USGS-{gg_id}',
-            navigation='upstreamMain',
-            source='flowlines',
-            distance=1
-        )
-        print(comid)
+    # define dataframe to hold gauge_ids and associated comids
+    # dict_comids = {x: [] for x in df_out[gg_cols[0]].unique()}
+    df_comids = pd.DataFrame({
+        gg_cols[0]: df_out[gg_cols[0]].unique(),
+        'comid': ['na' for x in range(len(df_out[gg_cols[0]].unique()))]
+        })
+
+    for gg_id in df_comids[gg_cols[0]].unique():
+        print(f'attempting retrieval of comid for: {gg_id}')
+        df_comids.loc[df_comids[gg_cols[0]] == gg_id, 'comid'] = \
+            get_comid_for_gauge(gg_id)
+
+    df_out = pd.merge(df_out, df_comids, on=gg_cols[0])
+
+    # get current timestamp
+
     # TODO: use dict_Vars to add variable source info to dataframe
     # add data information to dataframe
     # df_out['']
 
     # write a parquet file for each gauge_id
+# featureID	featureSource	data_source	dl_timestamp	attribute	value
+# 22152435	COMID	usgs_nhdplus__v2	2024-11-02 11:14:22	TOT_HDENS00	9.11
+# 22152435	COMID	usgs_nhdplus__v2	2024-11-02 11:14:22	TOT_HDENS10	10.49
+# 22152435	COMID	usgs_nhdplus__v2	2024-11-02 11:14:22	TOT_HDENS80	6.69
+# 22152435	COMID	usgs_nhdplus__v2	2024-11-02 11:14:22	TOT_HDENS90	7.76
 
     print('\n===================================\n'
           'Processing Complete'
@@ -795,3 +784,4 @@ if __name__ == '__main__':
     #     'tests/custom_attribute_data/TEST_CUSTOM_OUT3.csv',
     #     dtype={'STAID': str}
     #     )
+
