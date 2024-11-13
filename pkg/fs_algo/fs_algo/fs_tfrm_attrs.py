@@ -3,7 +3,7 @@
 # attribute grabbing, which is before the fs_proc_algo.py
 # Refer to the example config file, e.g. 
 # `Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml')`
-
+# Usage: python fs_tfrm_attrs.py "path/to/attrs_tform.yaml"
 
 import argparse
 import yaml
@@ -14,6 +14,8 @@ import fs_algo.tfrm_attr as fta
 import itertools
 from collections import ChainMap
 
+# TODO: add config file option for skipping if attribute missing
+# TODO: create file output of missing attributes to direct proc.attr.hydfab
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'process the algorithm config file')
@@ -26,7 +28,7 @@ if __name__ == "__main__":
     with open(path_tfrm_cfig, 'r') as file:
         tfrm_cfg = yaml.safe_load(file)
 
-    # Read from transform config file:
+    # Read from transformation config file:
     catgs_attrs_sel = [x for x in list(itertools.chain(*tfrm_cfg)) if x is not None]
     idx_tfrm_attrs = catgs_attrs_sel.index('transform_attrs')
     idx_file_io = catgs_attrs_sel.index('file_io')
@@ -42,6 +44,10 @@ if __name__ == "__main__":
     dir_db_attrs = attr_cfig.attrs_cfg_dict.get('dir_db_attrs')
     dir_std_base = attr_cfig.attrs_cfg_dict.get('dir_std_base')
     datasets = attr_cfig.attrs_cfg_dict.get('datasets')
+
+    # Define path to store missing comid-attribute pairings:
+    path_need_attrs = Path(Path(dir_db_attrs) /Path('missing/needed_loc_attrs.csv'))
+    path_need_attrs.parent.mkdir(parents=True,exist_ok=True)
 
     #%% READ COMIDS FROM CUSTOM FILE (IF path_comids present in tfrm config)
     # Extract location of custom file containing comids:
@@ -100,7 +106,6 @@ if __name__ == "__main__":
                                 ls_all_cstm_vars=None,
                                 ls_all_cstm_funcs = ls_all_cstm_funcs)
 
-        # TODO Check whether all variables used for aggregation exist in parquet files
         # Find the custom variable names we need to create; also the key values in the dicts returned by _retr_cstm_funcs()
         cstm_vars_need =  [k for k, val in dict_all_cstm_funcs.items() if val in dict_need_vars_funcs.get('funcs')]
 
@@ -119,16 +124,32 @@ if __name__ == "__main__":
             # Retrieve the variables of interest for the function
             df_attr_sub = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel=attrs_retr_sub,
                             _s3 = None,storage_options=None,read_type='filename')
-            
+            # Check if needed attribute data all exist. If not, write to csv file to know what is missing
+            if df_attr_sub.shape[0] < len(attrs_retr_sub):
+                df_all = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel='all',
+                            _s3 = None,storage_options=None,read_type='filename')
+                if df_all.shape[0]>0:
+                    print(f"Attribute data exist for comid {comid} but missing for {', '.join(attrs_retr_sub)}")
+                else:
+                    print(f"Absolutely no attribute data found for comid {comid}. Acquire it!")
+  
+                df_need_attrs_comid = pd.DataFrame({'comid' : comid,
+                                                    'attribute' : attrs_retr_sub,
+                                                    'config_file' : Path(path_tfrm_cfig).name})
+
+                df_need_attrs_comid.to_csv(path_need_attrs, mode = 'a', header= not path_need_attrs.exists())
+                print(f"Wrote needed comid-attributes to \n{path_need_attrs}")
+                continue
+
             # Apply transformation
             # Subset data to variables and compute new attribute
             attr_val = fta._sub_tform_attr_ddf(all_attr_ddf=all_attr_ddf, 
                         retr_vars=attrs_retr_sub, func = func_tfrm)
             
-            if pd.isnull(attr_val):
-                raise ValueError(f"Unexpected NULL value returned after
-                                  aggregating and transforming attributes.
-                                  Inspect {new_var} with comid {comid}")
+            if any(pd.isnull(attr_val)):
+                raise ValueError("Unexpected NULL value returned after " +
+                                  "aggregating and transforming attributes. " +
+                                  f"Inspect {new_var} with comid {comid}")
 
             # Populate new values in the new dataframe
             new_df = fta._gen_tform_df(all_attr_ddf=all_attr_ddf, 
@@ -145,3 +166,8 @@ if __name__ == "__main__":
                             dir_db_attrs=dir_db_attrs,
                             comid=comid, 
                             attrtype='tfrmattr')
+
+    # Ensure no duplicates exist in the needed attributes file
+    if path_need_attrs.exists():
+        print(f"Dropping any duplicate entries in {path_need_attrs}")
+        pd.read_csv(path_need_attrs).drop_duplicates().to_csv(path_need_attrs,index=False)
