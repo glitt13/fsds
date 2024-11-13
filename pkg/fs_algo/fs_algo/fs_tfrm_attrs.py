@@ -14,9 +14,6 @@ import fs_algo.tfrm_attr as fta
 import itertools
 from collections import ChainMap
 
-# TODO: add config file option for skipping if attribute missing
-# TODO: create file output of missing attributes to direct proc.attr.hydfab
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'process the algorithm config file')
     parser.add_argument('path_tfrm_cfig', type=str, help='Path to the YAML configuration file specific for algorithm training')
@@ -36,7 +33,7 @@ if __name__ == "__main__":
 
     # Extract desired content from attribute config file
     path_attr_config=fsate.build_cfig_path(path_tfrm_cfig, Path(fio.get('name_attr_config')))
-    attr_cfig = fsate.AttrConfigAndVars(path_attr_config) # TODO consider fsate
+    attr_cfig = fsate.AttrConfigAndVars(path_attr_config) 
     attr_cfig._read_attr_config()
 
     # Define all directory paths in case used in f-string evaluation
@@ -56,14 +53,14 @@ if __name__ == "__main__":
     # Read in comid from custom file (e.g. predictions)
     if path_comid:
         path_comid = Path(path_comid)
-        colname_comid = fio.get('colname_comid') # TODO adjust this to fio 
+        colname_comid = fio.get('colname_comid') 
         df_comids = fta.read_df_ext(path_comid)
         ls_comid = ls_comid + df_comids[colname_comid].to_list()
 
     #%%  READ COMIDS GENERATED FROM proc_attr_hydfab 
     likely_ds_types = ['training','prediction']
     loc_id_col = 'comid'
-    name_attr_config = fio.get('name_attr_config', None)# TODO read this from the tfrm_attrs config fio 
+    name_attr_config = fio.get('name_attr_config', None)
 
     ls_comids_attrs = list()
     if  name_attr_config: 

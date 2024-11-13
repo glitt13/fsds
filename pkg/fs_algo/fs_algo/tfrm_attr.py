@@ -148,7 +148,7 @@ def io_std_attrs(df_new_vars: pd.DataFrame,
             print(f"Updating {path_tfrm_comid}")
             df_exst_vars_tfrm = pd.read_parquet(path_tfrm_comid)
             # Append new variables
-            df_new_vars = pd.concat([df_exst_vars_tfrm,df_new_vars])
+            df_new_vars = pd.concat([df_exst_vars_tfrm,df_new_vars]).drop_duplicates()
         else:
             print(f"Writing {path_tfrm_comid}")
         
