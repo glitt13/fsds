@@ -251,7 +251,7 @@ def _gen_tform_df(all_attr_ddf: dd.DataFrame, new_var_id: str,
     if all_attr_ddf['featureID'].nunique().compute() != 1:
         raise ValueError("Only expecting one unique location identifier. Reconsider first row logic.")
     
-    base_df=all_attr_ddf.loc[0,:].compute() # Just grab the first row of a data.frame corresponding to a  and reset the values that matter
+    base_df=all_attr_ddf.head(1)# Just grab the first row of a data.frame and reset the values that matter
     base_df.loc[:,'attribute'] = new_var_id
     base_df.loc[:,'value'] = attr_val
     base_df.loc[:,'data_source'] = _cstm_data_src(tform_type,retr_vars)
