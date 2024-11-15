@@ -302,10 +302,23 @@ def _retr_cstm_funcs(tfrm_cfg_attrs:dict)->dict:
             'dict_tfrm_func_objs':dict_tfrm_func_objs,
             'dict_retr_vars':dict_retr_vars}
 
+
 def _id_need_tfrm_attrs(all_attr_ddf: dd.DataFrame,
                           ls_all_cstm_vars:list=None,
                           ls_all_cstm_funcs:list=None)->dict:
-    # Identify which attributes should be created to achieve transformation goals
+    """Identify which attributes should be created to achieve transformation goals
+
+    :param all_attr_ddf: _description_
+    :type all_attr_ddf: dd.DataFrame
+    :param ls_all_cstm_vars: _description_, defaults to None
+    :type ls_all_cstm_vars: list, optional
+    :param ls_all_cstm_funcs: _description_, defaults to None
+    :type ls_all_cstm_funcs: list, optional
+    :raises ValueError: _description_
+    :return: _description_
+    :rtype: dict
+    """
+    # 
     if all_attr_ddf['featureID'].nunique().compute() != 1:
         raise ValueError("Only expecting one unique location identifier. Reconsider first row logic.")
 
@@ -325,3 +338,55 @@ def _id_need_tfrm_attrs(all_attr_ddf: dd.DataFrame,
                             'funcs': ls_need_funcs}
 
     return dict_need_vars_funcs
+
+
+#%% missing attributes
+
+def std_miss_path(dir_db_attrs: str | os.PathLike) -> os.PathLike:
+    """Create a standardized csv path for storing missing comid-attribute 
+    pairings needed for attribute transformation
+
+    :param dir_db_attrs: The base attribute directory storing parquet files
+    :type dir_db_attrs: str | os.PathLike
+    :return: The path inside 
+    `Path(dir_db_attrs/Path(missing/needed_loc_attrs.csv))`
+    :rtype: os.PathLike
+    """
+    path_need_attrs = Path(Path(dir_db_attrs) / Path('missing/needed_loc_attrs.csv'))
+    path_need_attrs.parent.mkdir(parents=True,exist_ok=True)
+    return path_need_attrs
+
+def write_missing_attrs(attrs_retr_sub:list, dir_db_attrs: str | os.PathLike,
+                        comid: str, path_tfrm_cfig: str | os.PathLike = ''):
+    """Append missing attributes to file
+
+    :param attrs_retr_sub: The list of attributes for aggregation and eventual transformation
+    :type attrs_retr_sub: list
+    :param dir_db_attrs: Directory where parquet files of attribute data
+      stored
+    :type dir_db_attrs: str | os.PathLike
+    :param comid:  USGS NHDplus common identifier for a catchment
+    :type comid: str
+    :param path_tfrm_cfig: Filepath of config file. Optional. Used as a descriptor in 
+    missing attributes file writing to help understand which transformation
+    processing config identified missing attributes
+    :type path_tfrm_cfig: str | os.PathLike
+    """
+    # Create path where needed attributes are saved
+    path_need_attrs = std_miss_path(dir_db_attrs)
+
+    # All the available attributes for a given comid
+    df_all = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel='all',
+                _s3 = None,storage_options=None,read_type='filename')
+    if df_all.shape[0]>0:
+        print(f"Attribute data exist for comid {comid} but missing for {', '.join(attrs_retr_sub)}")
+    else:
+        print(f"Absolutely no attribute data found for comid {comid}. Acquire it!")
+
+    df_need_attrs_comid = pd.DataFrame({'comid' : comid,
+                                        'attribute' : attrs_retr_sub,
+                                        'config_file' : Path(path_tfrm_cfig).name})
+
+    df_need_attrs_comid.to_csv(path_need_attrs, mode = 'a', header= not path_need_attrs.exists())
+    print(f"Wrote needed comid-attributes to \n{path_need_attrs}")
+    

@@ -6,7 +6,7 @@ import yaml
 import pandas as pd
 from pathlib import Path
 import fs_algo.fs_algo_train_eval as fsate
-import fs_algo.tfrm_attr as fta
+import fs_algo.fs_tfrm_attr as fta
 import itertools
 from collections import ChainMap
 

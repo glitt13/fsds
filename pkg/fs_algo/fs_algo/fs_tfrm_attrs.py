@@ -1,9 +1,20 @@
-# If attribute aggregation & transformations desired, run the 
-# attribute transform as the  step in the workflow following
-# attribute grabbing, which is before the fs_proc_algo.py
-# Refer to the example config file, e.g. 
-# `Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml')`
-# Usage: python fs_tfrm_attrs.py "path/to/attrs_tform.yaml"
+"""Attribute aggregation & transformation script
+Using the attribute transformation configuration file,
+aggregate and transform existing attributes to create new attributes
+
+Details:
+If additional attribute transformations desired, the natural step in the workflow
+is after the attributes have been acquired, and before running fs_proc_algo.py 
+
+If attributes needed for aggregation do not exist for a given
+comid, the fs_algo.tfrm_attrs. writes the missing attributes to file
+
+Refer to the example config file, e.g. 
+`Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml')`
+
+Usage:
+python fs_tfrm_attrs.py "/path/to/tfrm_config.yaml"
+"""
 
 import argparse
 import yaml
@@ -28,8 +39,10 @@ if __name__ == "__main__":
     # Read from transformation config file:
     catgs_attrs_sel = [x for x in list(itertools.chain(*tfrm_cfg)) if x is not None]
     idx_tfrm_attrs = catgs_attrs_sel.index('transform_attrs')
+
+    # dict of file input/output, read-only combined view
     idx_file_io = catgs_attrs_sel.index('file_io')
-    fio = dict(ChainMap(*tfrm_cfg[idx_file_io]['file_io'])) # dict of file input/output, read-only combined view
+    fio = dict(ChainMap(*tfrm_cfg[idx_file_io]['file_io'])) 
 
     # Extract desired content from attribute config file
     path_attr_config=fsate.build_cfig_path(path_tfrm_cfig, Path(fio.get('name_attr_config')))
@@ -43,8 +56,7 @@ if __name__ == "__main__":
     datasets = attr_cfig.attrs_cfg_dict.get('datasets')
 
     # Define path to store missing comid-attribute pairings:
-    path_need_attrs = Path(Path(dir_db_attrs) /Path('missing/needed_loc_attrs.csv'))
-    path_need_attrs.parent.mkdir(parents=True,exist_ok=True)
+    path_need_attrs = fta.std_miss_path(dir_db_attrs)
 
     #%% READ COMIDS FROM CUSTOM FILE (IF path_comids present in tfrm config)
     # Extract location of custom file containing comids:
@@ -75,7 +87,8 @@ if __name__ == "__main__":
 
     # Create the custom functions
     dict_cstm_vars_funcs = fta._retr_cstm_funcs(tfrm_cfg_attrs)
-    # Note that this is a flattened length size, based on the total # of transformation functions & which transformations are needed
+    # Note that this is a flattened length size, based on the total 
+    # number of transformation functions & which transformations are needed
     
     # Desired custom variable names (corresponds to 'attribute' column) 
     dict_all_cstm_vars = dict_cstm_vars_funcs.get('dict_all_cstm_vars')
@@ -104,7 +117,8 @@ if __name__ == "__main__":
                                 ls_all_cstm_funcs = ls_all_cstm_funcs)
 
         # Find the custom variable names we need to create; also the key values in the dicts returned by _retr_cstm_funcs()
-        cstm_vars_need =  [k for k, val in dict_all_cstm_funcs.items() if val in dict_need_vars_funcs.get('funcs')]
+        cstm_vars_need =  [k for k, val in dict_all_cstm_funcs.items() \
+                           if val in dict_need_vars_funcs.get('funcs')]
 
         #%% Loop over each needed attribute:
         ls_df_rows = list()
@@ -121,25 +135,17 @@ if __name__ == "__main__":
             # Retrieve the variables of interest for the function
             df_attr_sub = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel=attrs_retr_sub,
                             _s3 = None,storage_options=None,read_type='filename')
-            # Check if needed attribute data all exist. If not, write to csv file to know what is missing
-            if df_attr_sub.shape[0] < len(attrs_retr_sub):
-                df_all = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel='all',
-                            _s3 = None,storage_options=None,read_type='filename')
-                if df_all.shape[0]>0:
-                    print(f"Attribute data exist for comid {comid} but missing for {', '.join(attrs_retr_sub)}")
-                else:
-                    print(f"Absolutely no attribute data found for comid {comid}. Acquire it!")
-  
-                df_need_attrs_comid = pd.DataFrame({'comid' : comid,
-                                                    'attribute' : attrs_retr_sub,
-                                                    'config_file' : Path(path_tfrm_cfig).name})
 
-                df_need_attrs_comid.to_csv(path_need_attrs, mode = 'a', header= not path_need_attrs.exists())
-                print(f"Wrote needed comid-attributes to \n{path_need_attrs}")
+            # Check if needed attribute data all exist. If not, write to 
+            # csv file to know what is missing
+            if df_attr_sub.shape[0] < len(attrs_retr_sub):
+                fta.write_missing_attrs(attrs_retr_sub=attrs_retr_sub,
+                                    dir_db_attrs=dir_db_attrs,
+                                    comid = comid, 
+                                    path_tfrm_cfig = path_tfrm_cfig)
                 continue
 
-            # Apply transformation
-            # Subset data to variables and compute new attribute
+            # Transform: subset data to variables and compute new attribute
             attr_val = fta._sub_tform_attr_ddf(all_attr_ddf=all_attr_ddf, 
                         retr_vars=attrs_retr_sub, func = func_tfrm)
             
