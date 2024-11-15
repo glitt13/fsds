@@ -78,16 +78,27 @@ retrieve_attr_exst <- function(comids, vars, dir_db_attrs, bucket_conn=NA){
   # Run simple checks on retrieved data
   if (base::any(!comids %in% dat_all_attrs$featureID)){
     missing_comids <- comids[base::which(!comids %in% dat_all_attrs$featureID)]
-    warning(base::paste0("Datasets missing the following comids: ",
-                         base::paste(missing_comids,collapse=","),
-                         "\nConsider running proc.attr.hydfab::proc_attr_wrap()"))
+    if (length(missing_comids) > 0){
+      warning(base::paste0("Datasets missing the following comids: ",
+                           base::paste(missing_comids,collapse=","),
+                           "\nConsider running proc.attr.hydfab::proc_attr_wrap()"))
+    } else {
+      message("There's a logic issue on missing_comids inside retrieve_attr_exst")
+    }
+
+
   }
 
   if (base::any(!vars %in% dat_all_attrs$attribute)){
     missing_vars <- vars[base::which(!vars %in% dat_all_attrs$attribute)]
-    warning(base::paste0("Datasets entirely missing the following vars: ",
-                         base::paste(missing_vars,collapse=","),
-                         "\nConsider running proc.attr.hydfab::proc_attr_wrap()"))
+    if(length(missing_vars) >0 ){
+      warning(base::paste0("Datasets entirely missing the following vars: ",
+                           base::paste(missing_vars,collapse=","),
+                           "\nConsider running proc.attr.hydfab::proc_attr_wrap()"))
+    } else {
+      message("There's a logic issue on missing_vars inside retrieve_attr_exst")
+    }
+
   }
 
   # Run check on all comid-attribute pairings by counting comid-var pairings
