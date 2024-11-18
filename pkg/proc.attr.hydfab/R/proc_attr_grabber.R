@@ -32,6 +32,7 @@ attr_cfig_parse <- function(path_attr_config){
   dir_db_hydfab <- glue::glue(base::unlist(raw_config$file_io)[['dir_db_hydfab']]) # file.path(dir_base,'input','hydrofabric') # The local dir where hydrofabric data are stored to limit s3 connections
   dir_db_attrs <- glue::glue(base::unlist(raw_config$file_io)[['dir_db_attrs']])  # file.path(dir_base,'input','attributes') # The parent dir where each comid's attribute parquet file is stored in the subdirectory 'comid/', and each dataset's aggregated parquet attributes are stored in the subdirectory '/{dataset_name}
 
+  datasets <- base::unlist(raw_config$formulation_metadata)[['datasets']]
   ds_type <- try(base::unlist(raw_config$file_io)[['ds_type']])
   if('try-error' %in% base::class(ds_type) || is.null(ds_type)){
     warning('ds_type undefined in the attribute config file. It is generally
@@ -44,7 +45,7 @@ attr_cfig_parse <- function(path_attr_config){
   }
 
   # Figure out the dataset name(s) in order to generate path_meta appropriately
-  path_meta_glue <- base::unlist(raw_config$file_io)[['path_meta']] # Still needs glue substitution
+  path_meta <- base::unlist(raw_config$file_io)[['path_meta']] # Still needs glue substitution
 
 
   # Read s3 connection details
@@ -89,7 +90,7 @@ attr_cfig_parse <- function(path_attr_config){
     dir_std_base = dir_std_base,
     path_meta = path_meta),
     vars = sub_attr_sel,
-    datasets = datasets,
+    datasets = base::unlist(raw_config$formulation_metadata)[['datasets']],
     ds_type = ds_type,
     write_type = write_type
   )
@@ -1101,7 +1102,7 @@ attr_cfig_parse <- function(path_attr_config){
   }
 
   # Figure out the dataset name(s) in order to generate path_meta appropriately
-  path_meta_glue <- base::unlist(raw_config$file_io)[['path_meta']] # Still needs glue substitution
+  path_meta <- base::unlist(raw_config$file_io)[['path_meta']] # Still needs glue substitution
 
 
   # Read s3 connection details
