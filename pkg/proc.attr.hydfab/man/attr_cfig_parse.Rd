@@ -5,21 +5,14 @@
 \title{Parse the file input/output component of the attribute config file}
 \usage{
 attr_cfig_parse(path_attr_config)
-
-attr_cfig_parse(path_attr_config)
 }
 \arguments{
 \item{path_attr_config}{full path to the attribute config file}
 }
 \description{
 Parse the file input/output component of the attribute config file
-
-Parse the file input/output component of the attribute config file
 }
 \details{
-Parses the attribute config file to generate the parameter
-list \code{Retr_Params} passed used throught proc.attr.hydfab
-
 Parses the attribute config file to generate the parameter
 list \code{Retr_Params} passed used throught proc.attr.hydfab
 }
