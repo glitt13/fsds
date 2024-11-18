@@ -387,6 +387,8 @@ def write_missing_attrs(attrs_retr_sub:list, dir_db_attrs: str | os.PathLike,
                                         'attribute' : attrs_retr_sub,
                                         'config_file' : Path(path_tfrm_cfig).name})
 
-    df_need_attrs_comid.to_csv(path_need_attrs, mode = 'a', header= not path_need_attrs.exists())
+    df_need_attrs_comid.to_csv(path_need_attrs, mode = 'a',
+                                header= not path_need_attrs.exists(),
+                                index=False)
     print(f"Wrote needed comid-attributes to \n{path_need_attrs}")
     
