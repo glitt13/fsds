@@ -18,10 +18,11 @@ library(yaml)
 
 
 attr_cfig_parse <- function(path_attr_config){
-  #' @title Parse the file input/output component of the attribute config file
+  #' @title Read and parse the attribute config yaml file to create parameter
+  #' list object
   #' @param path_attr_config full path to the attribute config file
   #' @details Parses the attribute config file to generate the parameter
-  #' list `Retr_Params` passed used throught proc.attr.hydfab
+  #' list `Retr_Params` used throughout proc.attr.hydfab
   #' @export
   raw_config <- yaml::read_yaml(path_attr_config)
 

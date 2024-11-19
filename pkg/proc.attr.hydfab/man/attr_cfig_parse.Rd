@@ -2,7 +2,8 @@
 % Please edit documentation in R/proc_attr_grabber.R
 \name{attr_cfig_parse}
 \alias{attr_cfig_parse}
-\title{Parse the file input/output component of the attribute config file}
+\title{Read and parse the attribute config yaml file to create parameter
+list object}
 \usage{
 attr_cfig_parse(path_attr_config)
 }
@@ -10,9 +11,10 @@ attr_cfig_parse(path_attr_config)
 \item{path_attr_config}{full path to the attribute config file}
 }
 \description{
-Parse the file input/output component of the attribute config file
+Read and parse the attribute config yaml file to create parameter
+list object
 }
 \details{
 Parses the attribute config file to generate the parameter
-list \code{Retr_Params} passed used throught proc.attr.hydfab
+list \code{Retr_Params} used throughout proc.attr.hydfab
 }
