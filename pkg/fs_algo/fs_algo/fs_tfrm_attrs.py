@@ -58,9 +58,9 @@ if __name__ == "__main__":
     # Define path to store missing comid-attribute pairings:
     path_need_attrs = fta.std_miss_path(dir_db_attrs)
 
-    #%% READ COMIDS FROM CUSTOM FILE (IF path_comids present in tfrm config)
+    #%% READ COMIDS FROM CUSTOM FILE (IF path_comid present in tfrm config)
     # Extract location of custom file containing comids:
-    path_comid = eval(f"f'{fio.get('path_comids', None)}'")
+    path_comid = eval(f"f'{fio.get('path_comid', None)}'")
     ls_comid = list()
     # Read in comid from custom file (e.g. predictions)
     if path_comid:
