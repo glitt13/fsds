@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     # dict of file input/output, read-only combined view
     idx_file_io = catgs_attrs_sel.index('file_io')
-    fio = dict(ChainMap(*tfrm_cfg[idx_file_io]['file_io'])) 
+    fio = dict(ChainMap(*tirm_cfg[idx_file_io]['file_io'])) 
 
     # Extract desired content from attribute config file
     path_attr_config=fsate.build_cfig_path(path_tfrm_cfig, Path(fio.get('name_attr_config')))
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     ls_comids_attrs = list()
     if  name_attr_config: 
         # Attribute metadata containing a comid column as standard format 
-        path_attr_config = fsate.build_cfig_path(path_tfrm_cfig, name_attr_config)#fsate.build_cfig_path(path_algo_config, name_attr_config)
+        path_attr_config = fsate.build_cfig_path(path_tfrm_cfig, name_attr_config)
         ls_comids_attrs = fta._get_comids_std_attrs(path_attr_config)
         
     # Compile unique comid values
