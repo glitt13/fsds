@@ -151,9 +151,9 @@ if __name__ == "__main__":
                     path_fs_attrs_miss = fio.get('path_fs_attrs_miss').format(home_dir = home_dir)
                     args = [str(path_attr_config)]
                     try:
+                        print(f"Attempting to retrive missing attributes using {Path(path_fs_attrs_miss).name}")
                         result = subprocess.run(['Rscript', path_fs_attrs_miss] + args, capture_output=True, text=True)
-                        # Print the output
-                        print(result.stdout)
+                        print(result.stdout) # Print the output from the Rscript
                         print(result.stderr)  # If there's any error output
                     except:
                         print(f"Could not run the Rscript {path_fs_attrs_miss}." +
