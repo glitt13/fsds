@@ -1074,4 +1074,114 @@ hfab_config_opt <- function(hfab_config,
   return(xtra_cfig_hfab)
 }
 
+######## MISSING COMID-ATTRIBUTES ##########
+fs_attrs_miss_wrap <- function(path_attr_config){
+  #' @title Wrapper searching for comid-attribute data identified as missing
+  #' @details Given missing comid-attribute pairings previously identified
+  #'  from fs_tfrm_attrs.py, and generated as a file by python function
+  #'  `fs_algo.tfrm_attr.write_missing_attrs`
+  #' @param path_attr_config The file path to the attribute config file
+  #' @seealso `fs_algo.tfrm_attr.write_missing_attrs` python
+  #' @export
+
+  # Generate the parameter list
+  Retr_Params <- proc.attr.hydfab::attr_cfig_parse(path_attr_config = path_attr_config)
+
+
+  std_miss_path <- function(dir_db_attrs){
+    #' @title standardize path to file listing all missing attributes
+    #' @param dir_db_attrs The directory to the attribute database
+    #' @seealso `fs_algo.tfrm_attrs.std_miss_path` python package
+    #' @export
+    path_missing_attrs <- file.path(dir_db_attrs,"missing","needed_loc_attrs.csv")
+    return(path_missing_attrs)
+  }
+
+  path_missing_attrs <- std_miss_path(Retr_Params$paths$dir_db_attrs)
+  df_miss <- utils::read.csv(path_missing_attrs,)
+  if(nrow(df_miss)>0){
+    message("Beginning search for missing comid-attribute pairings.")
+    df_miss$uniq_cmbo <- paste0(df_miss$comid,df_miss$attribute) # The unique comid-attr combo
+    # Read in proc.attr.hydfab package's extdata describing attributes & data sources
+    dir_extdata <- system.file("extdata",package="proc.attr.hydfab")
+    path_attr_menu <- file.path(dir_extdata, "fs_attr_menu.yaml")
+    df_attr_menu <- yaml::read_yaml(path_attr_menu)
+
+    path_attr_src_types <- file.path(dir_extdata,"attr_source_types.yml")
+    df_attr_src_types <- yaml::read_yaml(path_attr_src_types)
+
+    # Identify which attributes correspond to which datasets using the menu
+    attrs <- df_miss$attribute
+    df_miss$dl_dataset <- NA
+    for (dl_ds in names(df_attr_menu)){
+      sub_df_attr_menu <- df_attr_menu[[dl_ds]]
+      sub_attrs <- names(unlist(sub_df_attr_menu))
+      ls_locs_df <- base::lapply(attrs, function(a)
+        base::length(base::grep(a, sub_attrs))!=0 ) |>
+        base::unlist()
+      idxs_this_dl_ds <- base::which(ls_locs_df==TRUE)
+      if(length(idxs_this_dl_ds)>0){
+        print(glue::glue("Found attributes from {dl_ds} dataset"))
+        df_miss$dl_dataset[idxs_this_dl_ds] <- unlist(df_attr_src_types[[dl_ds]])[["name"]]
+      } else {
+        print(glue::glue("No attributes correspond to {dl_ds} dataset"))
+      }
+    }
+
+    # Check to make sure all attrs identified
+    if(base::any(base::is.na(df_miss$dl_dataset))){
+      unk_attrs <- df_miss$attribute[which(is.na(df_miss$dl_dataset))]
+      str_unk_attrs <- paste0(unk_attrs, collapse = ", ")
+      warning(glue::glue("Could not identify datasets for the following attributes:
+                       \n{str_unk_attrs}"))
+    }
+
+    filter_df <- df_miss
+    ls_sub_dt <- list() # NOTE consider removing this object if memory issues arise
+    # Attempt to retrieve missing attributes for each comid of interest
+    for (comid in unique(df_miss$comid)){
+
+      sub_df_miss <- df_miss[df_miss$comid == comid,]
+
+
+      var_ls <- lapply(unique(sub_df_miss$dl_dataset),
+                       function(dl_ds) sub_df_miss[sub_df_miss$dl_dataset == dl_ds,'attribute'])
+      names(var_ls) <- unique(sub_df_miss$dl_dataset)
+
+      Retr_Params$vars <- var_ls
+
+      # Note dt_cmbo contains all data for a comid, not just the requested data!
+      dt_cmbo <- proc.attr.hydfab::proc_attr_wrap(comid=comid,
+                                                  Retr_Params=Retr_Params,
+                                                  lyrs="network",overwrite=FALSE,
+                                                  hfab_retr=FALSE)
+
+
+      sub_dt_cmbo <- dt_cmbo %>% subset(attribute %in% unlist(Retr_Params$vars))
+      sub_dt_cmbo$uniq_cmbo <- paste0(sub_dt_cmbo$featureID,sub_dt_cmbo$attribute)
+
+      ls_sub_dt[[comid]] <- sub_dt_cmbo # Tracking the new data
+      # TODO drop NA values?
+
+      if(base::any(base::is.na(sub_dt_cmbo$value))){
+        stop(paste0("PROBLEM: {comid} has some NA values"))
+      }
+
+      # If data successfully retrieved, remove from the missing list.
+      filter_df <- filter_df[!filter_df$uniq_cmbo %in% sub_dt_cmbo$uniq_cmbo,]
+
+    }
+
+    if (base::nrow(filter_df)== 0){
+      message("Successfully found all missing attributes!")
+    } else {
+      message("Some missing comid-attribute pairings still remain")
+    }
+    # Now update the missing comid-attribute pairing file
+    write.csv(filter_df,file = path_missing_attrs,row.names = FALSE)
+
+  } else {
+    message("No missing comid-attribute pairings.")
+  }
+}
 
