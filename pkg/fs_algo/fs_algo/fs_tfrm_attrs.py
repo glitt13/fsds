@@ -24,6 +24,7 @@ import fs_algo.fs_algo_train_eval as fsate
 import fs_algo.tfrm_attr as fta
 import itertools
 from collections import ChainMap
+import subprocess
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'process the algorithm config file')
@@ -42,7 +43,7 @@ if __name__ == "__main__":
 
     # dict of file input/output, read-only combined view
     idx_file_io = catgs_attrs_sel.index('file_io')
-    fio = dict(ChainMap(*tirm_cfg[idx_file_io]['file_io'])) 
+    fio = dict(ChainMap(*tfrm_cfg[idx_file_io]['file_io'])) 
 
     # Extract desired content from attribute config file
     path_attr_config=fsate.build_cfig_path(path_tfrm_cfig, Path(fio.get('name_attr_config')))
@@ -143,6 +144,23 @@ if __name__ == "__main__":
                                     dir_db_attrs=dir_db_attrs,
                                     comid = comid, 
                                     path_tfrm_cfig = path_tfrm_cfig)
+                #  Run the Rscript for acquiring missing attributes, then retry attribute retrieval
+                if fio.get('path_fs_attrs_miss'):
+                    # Path to the Rscript, requires proc.attr.hydfab package to be installed!
+                    home_dir = Path.home()
+                    path_fs_attrs_miss = fio.get('path_fs_attrs_miss').format(home_dir = home_dir)
+                    args = [str(path_attr_config)]
+                    try:
+                        result = subprocess.run(['Rscript', path_fs_attrs_miss] + args, capture_output=True, text=True)
+                        # Print the output
+                        print(result.stdout)
+                        print(result.stderr)  # If there's any error output
+                    except:
+                        print(f"Could not run the Rscript {path_fs_attrs_miss}." +
+                              "\nEnsure proc.attr.hydfab R package installed and appropriate path to fs_attrs_miss.R")
+                    # Re-run the attribute retrieval in case new ones now available
+                    fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel=attrs_retr_sub,
+                                _s3 = None,storage_options=None,read_type='filename')
                 continue
 
             # Transform: subset data to variables and compute new attribute
