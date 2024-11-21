@@ -21,6 +21,11 @@ metric_mappings_single_timeseries: # Refer to CIROH-funded TEEHR Metric List: ht
   - 'KGEmod1': 'Kling-Gupta efficiency from Kling et al 2012'
   - 'KGEmod2': 'Kling-Gupta efficiency from Clark et al 2021'
   - 'MSESS': 'mean square error skill score'
+  - 'alpha_NSE': 'alpha NSE decomposition, Gupta et al 2009: the variability ratio sigma_m/sigma_o'  #Added based on Kratzert et al, 2019 (may not be in TEEHR)
+  - 'beta_NSE': 'beta NSE decomposition, Gupta et al 2009: bias; ratio of means mu_m/mu_o' #Added based on Kratzert et al, 2019 (may not be in TEEHR)
+  - 'FHV': 'top 2% peak flow bias, Yilmaz et al 2008' #Added based on Kratzert et al, 2019 (may not be in TEEHR)
+  - 'FLV': '30% low flow bias, Yilmaz et al 2008' #Added based on Kratzert et al, 2019 (may not be in TEEHR)
+  - 'FMS': 'bias of FDC midsegment slope, Yilmaz et al 2008' #Added based on Kratzert et al, 2019 (may not be in TEEHR)
 metric_mappings_hydrotools: #  consider the metrics provided via hydrotools https://github.com/NOAA-OWP/hydrotools/tree/main/python/metrics/src/hydrotools/metrics/metrics.py
   - 'MESS': 'mean error skill score' 
   - 'COP': 'coefficient of persistence'
