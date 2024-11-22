@@ -28,12 +28,13 @@ if __name__ == "__main__":
     algo_config = {k: algo_cfg['algorithms'][k] for k in algo_cfg['algorithms']}
     if algo_config['mlp'][0].get('hidden_layer_sizes',None): # purpose: evaluate string literal to a tuple
         algo_config['mlp'][0]['hidden_layer_sizes'] = ast.literal_eval(algo_config['mlp'][0]['hidden_layer_sizes'])
-        
+    algo_config_og = algo_config.copy()
+
     verbose = algo_cfg['verbose']
     test_size = algo_cfg['test_size']
     seed = algo_cfg['seed']
     read_type = algo_cfg.get('read_type','all') # Arg for how to read attribute data using comids in fs_read_attr_comid(). May be 'all' or 'filename'.
-    
+
     #%% Attribute configuration
     name_attr_config = algo_cfg.get('name_attr_config', Path(path_algo_config).name.replace('algo','attr')) 
     path_attr_config = fsate.build_cfig_path(path_algo_config, name_attr_config)
@@ -91,6 +92,8 @@ if __name__ == "__main__":
         rslt_eval = dict()
         for metr in metrics:
             print(f' - Processing {metr}')
+            if len(algo_config) == 0:
+                algo_config = algo_config_og.copy()
             # Subset response data to metric of interest & the comid
             df_metr_resp = pd.DataFrame({'comid': dat_resp['comid'],
                                         metr : dat_resp[metr].data})
@@ -110,7 +113,7 @@ if __name__ == "__main__":
             
             # Retrieve evaluation metrics dataframe
             rslt_eval[metr] = train_eval.eval_df
-
+            del train_eval
         # Compile results and write to file
         rslt_eval_df = pd.concat(rslt_eval).reset_index(drop=True)
         rslt_eval_df['dataset'] = ds
