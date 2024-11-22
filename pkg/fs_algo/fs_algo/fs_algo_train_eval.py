@@ -62,6 +62,20 @@ class AttrConfigAndVars:
 
         # The datasets of interest
         datasets = list([x for x in self.attr_config['formulation_metadata'] if 'datasets' in x][0].values())[0]
+
+        # TODO The multidatasets_identifier remains un-tested until this note goes away!
+        # multidatasets_identifier used in case multiple datasets exist inside each 'datasets' directory.
+        mltidatasets_id = [x for x in self.attr_config['formulation_metadata'] if 'multidatasets_identifier' in x]
+        if mltidatasets_id: 
+            # Extract the match string used to identify each of the .nc datasets created by fs_proc.proc_eval_metrics.proc_col_schema()
+            mltidatasets_str = mltidatasets_id[0]['multidatasets_id']
+            for ds in datasets:
+                all_dataset_paths = _std_fs_proc_ds_paths(dir_std_base,ds=ds,
+                                                          mtch_str = '*' + mltidatasets_str)
+                # Redefine datasets
+                datasets = [Path(x).name() for x in all_dataset_paths]
+
+
         # Compile output
         self.attrs_cfg_dict = {'attrs_sel' : attrs_sel,
                             'dir_db_attrs': dir_db_attrs,
@@ -249,16 +263,40 @@ def fs_retr_nhdp_comids(featureSource:str,featureID:str,gage_ids: Iterable[str] 
     """
 
     nldi = nhd.NLDI()
-    comids_resp = [nldi.navigate_byid(fsource=featureSource,fid= featureID.format(gage_id=gage_id),
-                                navigation='upstreamMain',
-                                source='flowlines',
-                                distance=1 # the shortest distance
-                                ).loc[0]['nhdplus_comid'] 
-                                for gage_id in gage_ids]
     
-    if len(comids_resp) != len(gage_ids) or comids_resp.count(None) > 0: # May not be an important check
-        raise warnings.warn("The total number of retrieved comids does not match \
-                      total number of provided gage_ids",UserWarning)
+    # comids_resp = [nldi.navigate_byid(fsource=featureSource,fid= featureID.format(gage_id=gage_id),
+    #                             navigation='upstreamMain',
+    #                             source='flowlines',
+    #                             distance=1 # the shortest distance
+    #                             ).loc[0]['nhdplus_comid'] 
+    #                             for gage_id in gage_ids]
+    comids_miss = []
+    comids_resp = []
+    for gage_id in gage_ids:
+        try:
+            comid = nldi.navigate_byid(
+                fsource=featureSource,
+                fid=featureID.format(gage_id=gage_id),
+                navigation='upstreamMain',
+                source='flowlines',
+                distance=1
+            ).loc[0]['nhdplus_comid']
+            comids_resp.append(comid)
+        except Exception as e:
+            print(f"Error processing gage_id {gage_id}: {e}")
+            # Handle the error (e.g., log it, append None, or any other fallback mechanism)
+
+            # TODO Attempt a different approach for retrieving comid:
+            comids_miss.append(comid)
+
+            comids_resp.append(np.nan)  # Appending NA for failed gage_id, or handle differently as needed
+            
+
+            
+
+    # if len(comids_resp) != len(gage_ids) or comids_resp.count(None) > 0: # May not be an important check
+    #     raise warnings.warn("The total number of retrieved comids does not match \
+    #                   total number of provided gage_ids",UserWarning)
 
     return comids_resp
 
@@ -318,12 +356,27 @@ def fs_save_algo_dir_struct(dir_base: str | os.PathLike ) -> dict:
 
     return out_dirs
 
-def _open_response_data_fs(dir_std_base: str | os.PathLike, ds:str) -> xr.Dataset:
+def _std_fs_proc_ds_paths(dir_std_base: str|os.PathLike,ds:str,mtch_str='*.nc') -> list:
+    """The standard .nc paths for standardized dataset created using fs_proc.proc_eval_metrics.proc_col_schema()
+
+    :param dir_std_base:  The directory containing the standardized dataset generated from `fs_proc`
+    :type dir_std_base: str | os.PathLike
+    :param ds:  a string that's unique to the dataset of interest
+    :type ds: str
+    :param mtch_str: the desired matching string describing datasets of interests, defaults to '*.nc'
+    :type mtch_str: str, optional
+    :return: list of each filepath to a dataset
+    :rtype: list
+    """
+    ls_ds_paths = [x for x in Path(dir_std_base/Path(ds)).glob(mtch_str) if x.is_file()]
+    return ls_ds_paths
+
+def _open_response_data_fs(dir_std_base: str | os.PathLike, ds:str, mtch_str:str='*.nc') -> xr.Dataset:
     """Read in standardized dataset generated from :mod:`fs_proc`
 
     :param dir_std_base: The directory containing the standardized dataset generated from `fs_proc`
     :type dir_std_base: str | os.PathLike
-    :param ds: a string that's unique to the dataset of interest, generally not containing the file extension. 
+    :param ds: a string that represents the dataset of interest
     There should be a netcdf .nc or zarr .zarr file containing matches to this string
     :type ds: str
     :raises ValueError: The directory where the dataset file should live does not exist.
@@ -336,7 +389,11 @@ def _open_response_data_fs(dir_std_base: str | os.PathLike, ds:str) -> xr.Datase
         raise ValueError(f'The dir_std_base directory does not exist. Double check dir_std_base: \
                          \n{dir_std_base}')
     
-    path_nc = [x for x in Path(dir_std_base/Path(ds)).glob("*.nc") if x.is_file()]
+    path_nc = _std_fs_proc_ds_paths(dir_std_base=dir_std_base,ds=ds,mtch_str=mtch_str)
+    #path_nc = [x for x in Path(dir_std_base/Path(ds)).glob("*.nc") if x.is_file()]
+    if len(path_nc) > 1:
+        error_str = f"The following directory contains too many .nc files: {path_nc}"
+        raise ValueError(error_str)
 
     try:
         dat_resp = xr.open_dataset(path_nc[0], engine='netcdf4')
