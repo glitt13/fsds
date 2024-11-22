@@ -45,19 +45,7 @@ message(glue::glue("Attribute dataset sources include the following:\n
 message(glue::glue("Attribute variables to be acquired include :
   \n{paste0(unlist(unname(Retr_Params$vars)),collapse='\n')}"))
 
-Retr_Params <- base::list(paths = base::list(
-  # Note that if a path is provided, ensure the
-  # name includes 'path'. Same for directory having variable name with 'dir'
-                        dir_db_hydfab=dir_db_hydfab,
-                        dir_db_attrs=dir_db_attrs,
-                        s3_path_hydatl = s3_path_hydatl,
-                        dir_std_base = dir_std_base,
-                        path_meta = path_meta),
-                   vars = sub_attr_sel,
-                   datasets = datasets,
-                   ds_type = ds_type,
-                   write_type = write_type
-       )
+
 message(glue::glue("Attribute dataset sources include the following:\n
   {paste0(var_names_sub,collapse='\n')}"))
 
