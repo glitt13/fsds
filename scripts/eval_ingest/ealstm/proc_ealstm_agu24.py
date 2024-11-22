@@ -82,8 +82,6 @@ if __name__ == "__main__":
 
     # ------------- BEGIN CUSTOMIZED DATASET MUNGING -------------------
 
-    # TODO convert NSE to NNSE using 1/(2-NSE)
-
     # ---- Read in Kratzert et al 2019 metrics results acquired from github repo
     print("Custom code: Reading/formatting non-standardized input datasets")
     with open(path_data, 'rb') as file:
@@ -104,6 +102,7 @@ if __name__ == "__main__":
     # Each model type has different seeds or formulations
     dat_metr[metrics[0]][model_types[0]].keys()
 
+    # Extract the process-based model metrics
     # Create dict of dfs for each benchmark model, with df containing eval metrics
     dict_modl_names = dict()
     for sel_modl_name in benchmark_names:
@@ -122,7 +121,7 @@ if __name__ == "__main__":
                         else:
                             dict_modl_names[sel_modl_name] = pd.merge(dict_modl_names[sel_modl_name], df_metr, on='gageID')
 
-
+    # Extract LSTM ensemble model metrics
     lstm_model_types = [x for x in list(dat_metr[metrics[0]].keys()) if x!= 'benchmarks']
     dict_modl_names_lstm = dict()
     for sel_modl_name in lstm_model_types:
@@ -138,49 +137,19 @@ if __name__ == "__main__":
                             if dict_modl_names_lstm[sel_modl_name].shape[0] == 0:
                                 dict_modl_names_lstm[sel_modl_name] = pd.concat([dict_modl_names_lstm[sel_modl_name], df_metr])
                             else:
-                                dict_modl_names_lstm[sel_modl_name] = pd.merge(dict_modl_names_lstm[sel_modl_name], df_metr, on='gageID')#, how = 'all')
+                                dict_modl_names_lstm[sel_modl_name] = pd.merge(dict_modl_names_lstm[sel_modl_name], df_metr, on='gageID')
 
     
     dict_modl_names.update(dict_modl_names_lstm)
+ds_name_og = col_schema_df['dataset_name']
+# Operate over each dataset
+for ds, df in dict_modl_names.items():
+    print(f'Processing {ds}')
 
-    for ds, df in dict_modl_names.items():
-        # Operate over each dataset, noting that 
-        # Create NNSE
-        print(f'Processing {ds}')
-        df['NNSE'] = 1/(2-df['NSE'])
-        col_schema_df['formulation_id'] = ds
-        ds = pem.proc_col_schema(df, col_schema_df, dir_save)
+    # Create NNSE
+    df['NNSE'] = 1/(2-df['NSE'])
 
-
-
-
-    # metr_models = dict()
-    # for metric, vals in dat_metr.items():
-    #     dict_models = dict()
-    #     print(metric)
-    #     for model, vv in vals.items():
-    #         print(f'....{model}')
-
-    #         for modl_name, metr_vals in vv.items():
-    #             full_modl_name = model +'_' + modl_name
-    #             df_metr = pd.DataFrame(metr_vals.items(), columns = ['gageID',metric])
-    #             dict_models[full_modl_name] = df_metr
-    #     metr_models[metric] = dict_models
-
-
-
-    # df_all_data = pd.read_csv(path_data,sep = '; ',dtype={col_schema_df['gage_id'].loc[0] :str})
-
-    # # Ensure appropriate str formats & remove extraneous spaces that exist in this particular dataset
-    # df_all_data.columns = df_all_data.columns.str.replace(' ','')
-    # df_all_data[col_schema_df['gage_id'].loc[0]] = df_all_data[col_schema_df['gage_id'].loc[0]].str.replace(' ','')
-
-    # # # Read in CAMELS data (simply to retrieve the gauge_ids)
-    # # df_camlh = pd.read_csv(path_camels,sep=';',dtype={'gauge_id' :str})
-    
-
-    # # END CUSTOMIZED DATASET MUNGING
-
-    # # ------ Extract metric data and write to file
-    
-    # ds = pem.proc_col_schema(df, col_schema_df, dir_save)
+    # Format the dataset name
+    col_schema_df['dataset_name'] = [x.format(ds=ds) for x in ds_name_og]
+    # Generate the standardized netcdf file:
+    ds = pem.proc_col_schema(df, col_schema_df, dir_save)

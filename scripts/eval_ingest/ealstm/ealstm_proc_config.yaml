@@ -7,13 +7,13 @@ col_schema:   # required column mappings in the evaluation metrics dataset
   - 'metric_mappings': 'NSE|alpha_NSE|beta_NSE|FHV|FLV|FMS|NNSE' # The mapping of metric_cols to the standardized format as specified in fs_categories.yaml, separate each metric name by '|' e.g. 'RMSE|KGE|NSE'
 file_io: # May define {home_dir} for python's '{home_dir}/string_path'.format(home_dir =str(Path.home())) functionality
   - 'path_data': '{home_dir}/git/ealstm_regional_modeling/notebooks/all_metrics.p' # Where the raw input data are stored.
-  - 'dir_save': '{home_dir}/noaa/regionalization/data/input' # Required. The save location of standardized output
+  - 'dir_save': '{home_dir}/noaa/regionalization/data/input/' # Required. The save location of standardized output
   - 'save_type': 'netcdf' #  Required. Save as hierarchical files 'netcdf' or 'zarr'. Default 'netcdf' until attribute 
   - 'save_loc': 'local' #  Required.  Use 'local' for saving to a local path via dir_save. Future work will create an approach for 'aws' or other cloud saving methods
 formulation_metadata:  
-  - 'dataset_name': 'ealstm_kratzert2019' # Required. 
+  - 'dataset_name': 'kratzert19_{ds}' # Required. This defines the subdirectory 'dataset' name inside teh user_data_std directory. In this case, we'll create subdirectories for each dataset. See proc_ealstm_agu24.py
   - 'formulation_base': 'lstm_ealstm_vic_mhm_sacsma_hbv_fuse_kratzert2019' # Required. Basename of formulation. the rr, sp, and gw will be added to this if 'formulation_id' is left empty
-  - 'formulation_id': 'kratzert2019' # Optional alternative in lieu of generating a formulation_id based on 'formulation_base'. Should leave empty if automatic formulation_id generation desired.
+  - 'formulation_id': 'no_single_seeds' # Optional alternative in lieu of generating a formulation_id based on 'formulation_base'. Should leave empty if automatic formulation_id generation desired. This is appended to the end of the netcdf filename
   - 'formulation_ver': '' # Optional. The version of the formulation
   - 'temporal_res': 'daily' # The temporal resolution corresponding to the modeled data
   - 'target_var': 'Q' # Required. The target variable modeled. This is standardized. See target_var_mappings in fs_categories.yaml
