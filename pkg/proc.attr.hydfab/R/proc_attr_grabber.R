@@ -96,7 +96,7 @@ attr_cfig_parse <- function(path_attr_config){
     dir_std_base = dir_std_base,
     path_meta = path_meta),
     vars = sub_attr_sel,
-    datasets = base::unlist(raw_config$formulation_metadata)[['datasets']],
+    datasets = datasets,
     ds_type = ds_type,
     write_type = write_type
   )
