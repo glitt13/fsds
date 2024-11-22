@@ -33,7 +33,12 @@ attr_cfig_parse <- function(path_attr_config){
   dir_db_hydfab <- glue::glue(base::unlist(raw_config$file_io)[['dir_db_hydfab']]) # file.path(dir_base,'input','hydrofabric') # The local dir where hydrofabric data are stored to limit s3 connections
   dir_db_attrs <- glue::glue(base::unlist(raw_config$file_io)[['dir_db_attrs']])  # file.path(dir_base,'input','attributes') # The parent dir where each comid's attribute parquet file is stored in the subdirectory 'comid/', and each dataset's aggregated parquet attributes are stored in the subdirectory '/{dataset_name}
 
-  datasets <- base::unlist(raw_config$formulation_metadata)[['datasets']]
+  # datasets <- try(base::unlist(raw_config$formulation_metadata)[['datasets']])
+  # if("try-error" %in% class(datasets)){
+  #   # Consider multiple datasets:
+  names_form_meta <- unlist(lapply(raw_config$formulation_metadata, function (x) names(x)))
+  datasets <- raw_config$formulation_metadata[[which(names_form_meta=="datasets")]][['datasets']]
+  # }
   ds_type <- try(base::unlist(raw_config$file_io)[['ds_type']])
   if('try-error' %in% base::class(ds_type) || is.null(ds_type)){
     warning('ds_type undefined in the attribute config file. It is generally
