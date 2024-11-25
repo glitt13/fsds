@@ -32,9 +32,9 @@
       - TOT_SOLLER_450
       - TOT_SOLLER_451
       - TOT_SOLLER_452
-  - 'TOT_WB5100_yr_{tform_type}': 
-    - tform_type: [np.mean]
-    - var_desc: "The {tform_type} historic housing density from 1980 to 2010"
+  - 'TOT_NLCD06_FOR_{tform_type}':
+    - tform_type: [sum]
+    - var_desc: "The {tform_type} total percent land cover where tree coverage is at leat 20% of vegetation cover. A summation of deciduous, evergreen, and mixed forests from 2019 version of 2006 NLCD"
     - vars:
       - TOT_NLCD06_41
       - TOT_NLCD06_42
