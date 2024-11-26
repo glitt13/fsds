@@ -155,7 +155,9 @@ def io_std_attrs(df_new_vars: pd.DataFrame,
             print(f"Updating {path_tfrm_comid}")
             df_exst_vars_tfrm = pd.read_parquet(path_tfrm_comid)
             # Append new variables
-            df_new_vars = pd.concat([df_exst_vars_tfrm,df_new_vars]).drop_duplicates()
+            df_new_vars = pd.concat([df_exst_vars_tfrm,df_new_vars])
+            # Remove duplicates, keeping the most-recent duplicated rows with ascending = False
+            df_new_vars = fsate._check_attr_rm_dupes(df_new_vars, ascending = False)
         else:
             print(f"Writing {path_tfrm_comid}")
         

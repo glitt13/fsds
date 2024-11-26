@@ -44,6 +44,7 @@ if __name__ == "__main__":
     # dict of file input/output, read-only combined view
     idx_file_io = catgs_attrs_sel.index('file_io')
     fio = dict(ChainMap(*tfrm_cfg[idx_file_io]['file_io'])) 
+    overwrite_tfrm = fio.get('overwrite_tfrm',False)
 
     # Extract desired content from attribute config file
     path_attr_config=fsate.build_cfig_path(path_tfrm_cfig, Path(fio.get('name_attr_config')))
@@ -62,6 +63,7 @@ if __name__ == "__main__":
     #%% READ COMIDS FROM CUSTOM FILE (IF path_comid present in tfrm config)
     # Extract location of custom file containing comids:
     path_comid = eval(f"f'{fio.get('path_comid', None)}'")
+
     ls_comid = list()
     # Read in comid from custom file (e.g. predictions)
     if path_comid:
@@ -79,8 +81,10 @@ if __name__ == "__main__":
     if  name_attr_config: 
         # Attribute metadata containing a comid column as standard format 
         path_attr_config = fsate.build_cfig_path(path_tfrm_cfig, name_attr_config)
-        ls_comids_attrs = fta._get_comids_std_attrs(path_attr_config)
-        
+        try:
+            ls_comids_attrs = fta._get_comids_std_attrs(path_attr_config)
+        except:
+            print(f"No basin comids acquired from standardized metadata.")
     # Compile unique comid values
     comids = list(set(ls_comid + ls_comids_attrs))
     #%% Parse aggregation/transformations in config file
@@ -115,7 +119,8 @@ if __name__ == "__main__":
         dict_need_vars_funcs = fta._id_need_tfrm_attrs(
                                 all_attr_ddf=all_attr_ddf,
                                 ls_all_cstm_vars=None,
-                                ls_all_cstm_funcs = ls_all_cstm_funcs)
+                                ls_all_cstm_funcs = ls_all_cstm_funcs,
+                                overwrite_tfrm=overwrite_tfrm)
 
         # Find the custom variable names we need to create; also the key values in the dicts returned by _retr_cstm_funcs()
         cstm_vars_need =  [k for k, val in dict_all_cstm_funcs.items() \
@@ -133,6 +138,8 @@ if __name__ == "__main__":
             # The attributes used for creating the new variable
             attrs_retr_sub = dict_retr_vars.get(new_var)
             
+
+
             # Retrieve the variables of interest for the function
             df_attr_sub = fsate.fs_read_attr_comid(dir_db_attrs, comids_resp=[str(comid)], attrs_sel=attrs_retr_sub,
                             _s3 = None,storage_options=None,read_type='filename')
@@ -151,7 +158,7 @@ if __name__ == "__main__":
                     path_fs_attrs_miss = fio.get('path_fs_attrs_miss').format(home_dir = home_dir)
                     args = [str(path_attr_config)]
                     try:
-                        print(f"Attempting to retrive missing attributes using {Path(path_fs_attrs_miss).name}")
+                        print(f"Attempting to retrieve missing attributes using {Path(path_fs_attrs_miss).name}")
                         result = subprocess.run(['Rscript', path_fs_attrs_miss] + args, capture_output=True, text=True)
                         print(result.stdout) # Print the output from the Rscript
                         print(result.stderr)  # If there's any error output
