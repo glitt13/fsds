@@ -75,7 +75,7 @@ def _get_comids_std_attrs(path_attr_config: str | os.PathLike,
     for ds in datasets: # ds likely used for f-string eval with path_meta
         for ds_type in likely_ds_types: # ds_type likely used for f-string eval with path_meta
             path_meta = Path(eval(f"f'{fio_attr.get('path_meta')}'"))
-            if path_meta.exists:
+            if path_meta.exists():
                 print(f"Reading {path_meta}")
                 df_meta = read_df_ext(path_meta)
                 # Determine which column identifies the comids in a given metadata file
@@ -312,34 +312,44 @@ def _retr_cstm_funcs(tfrm_cfg_attrs:dict)->dict:
 
 def _id_need_tfrm_attrs(all_attr_ddf: dd.DataFrame,
                           ls_all_cstm_vars:list=None,
-                          ls_all_cstm_funcs:list=None)->dict:
+                          ls_all_cstm_funcs:list=None,
+                          overwrite_tfrm:bool=False)->dict:
     """Identify which attributes should be created to achieve transformation goals
-
-    :param all_attr_ddf: _description_
+        May choose how to select attributes by variable name or by transformation function identifier.
+        Recommended to use transformation function identifier, ls_all_cstm_funcs, a standardized,
+          descriptive format that isn't vulnerable to custom variable names that happen to be the same
+          name for different things (the case of ls_all_cstm_vars)
+    :param all_attr_ddf: All the attributes of interest for a location(s)
     :type all_attr_ddf: dd.DataFrame
-    :param ls_all_cstm_vars: _description_, defaults to None
+    :param ls_all_cstm_vars: The custom variable names to be created from transformations, defaults to None
     :type ls_all_cstm_vars: list, optional
-    :param ls_all_cstm_funcs: _description_, defaults to None
+    :param ls_all_cstm_funcs: List of all custom functions defined in config, defaults to None
     :type ls_all_cstm_funcs: list, optional
+    :param overwrite: Should the desired parameters been overwritten? defaults to False
+    :type overwrite_tfrm: bool, optional
     :raises ValueError: _description_
-    :return: _description_
+    :return: dict with keys of 'vars' and 'funcs' respectively representing the variables or functions that need to be created
     :rtype: dict
     """
-    # 
-    if all_attr_ddf['featureID'].nunique().compute() != 1:
-        raise ValueError("Only expecting one unique location identifier. Reconsider first row logic.")
 
-    ls_need_vars = list()
-    if ls_all_cstm_vars: 
-        existing_attrs_vars = set(all_attr_ddf['attribute'].compute().unique())
-        # Generate a list of custom variables not yet created for a single location based on attribute name
-        ls_need_attrs = [var for var in ls_all_cstm_vars if var not in existing_attrs_vars]
-        ls_need_vars = ls_need_vars + ls_need_attrs
-    ls_need_funcs = list()
-    if ls_all_cstm_funcs:
-        # Generate a list of custom variables not yet created for a single location based on function name
-        existing_src = set(all_attr_ddf['data_source'].compute().unique())
-        ls_need_funcs = [var for var in ls_all_cstm_funcs if var not in existing_src]
+    if overwrite_tfrm: # TODO double check this
+        ls_need_vars = ls_all_cstm_vars
+        ls_need_funcs = ls_all_cstm_funcs
+    else:
+        if all_attr_ddf['featureID'].nunique().compute() != 1:
+            raise ValueError("Only expecting one unique location identifier. Reconsider first row logic.")
+
+        ls_need_vars = list()
+        if ls_all_cstm_vars: 
+            existing_attrs_vars = set(all_attr_ddf['attribute'].compute().unique())
+            # Generate a list of custom variables not yet created for a single location based on attribute name
+            ls_need_attrs = [var for var in ls_all_cstm_vars if var not in existing_attrs_vars]
+            ls_need_vars = ls_need_vars + ls_need_attrs
+        ls_need_funcs = list()
+        if ls_all_cstm_funcs:
+            # Generate a list of custom variables not yet created for a single location based on function name
+            existing_src = set(all_attr_ddf['data_source'].compute().unique())
+            ls_need_funcs = [var for var in ls_all_cstm_funcs if var not in existing_src]
   
     dict_need_vars_funcs = {'vars': ls_need_vars,
                             'funcs': ls_need_funcs}
