@@ -23,6 +23,8 @@ from pathlib import Path
 import argparse
 import fs_algo.fs_algo_train_eval as fsate
 import xarray as xr
+import urllib.request
+import zipfile
 
 
 if __name__ == "__main__":
@@ -121,7 +123,18 @@ if __name__ == "__main__":
 
                 # Does the user want a scatter plot comparing the observed module performance and the predicted module performance by RaFTS?
                 if 'perf_map' in true_keys:
-                    states = gpd.read_file('/Users/laurenbolotin/data/conus_states_census.shp')
+                    url = 'https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip'
+                    zip_filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.zip'
+                    filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.shp'
+
+                    if not os.path.exists(zip_filename):
+                        print('Downloading shapefile...')
+                        urllib.request.urlretrieve(url, zip_filename)
+                    if not os.path.exists(filename):
+                        with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
+                            zip_ref.extractall(f'{dir_out}/data_visualizations')
+
+                    states = gpd.read_file(filename)
                     states = states.to_crs("EPSG:4326")
 
                     # Plot performance on map
@@ -148,13 +161,16 @@ if __name__ == "__main__":
                     cbar_ax.set_label(label=metric,size=24)
                     cbar_ax.ax.tick_params(labelsize=24)  # Set colorbar tick labels size
                     plt.title("Predicted Performance: {}".format(ds), fontsize = 28)
+                    ax.set_xlim(-126, -66)
+                    ax.set_ylim(24, 50)
 
                     # Save the plot as a .png file
                     output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_performance_map.png'
                     plt.savefig(output_path, dpi=300, bbox_inches='tight')
                     plt.clf()
                     plt.close()
-
+                    
+                    
                 if 'obs_vs_sim_scatter' in true_keys:
                     # Scatter plot of observed vs. predicted module performance
                     # Remove 'USGS-' from ids so it can be merged with the actual performance data
