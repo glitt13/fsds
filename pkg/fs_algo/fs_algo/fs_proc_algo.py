@@ -48,7 +48,18 @@ if __name__ == "__main__":
     attr_cfig = fsate.AttrConfigAndVars(path_attr_config)
     attr_cfig._read_attr_config()
 
-    attrs_sel = attr_cfig.attrs_cfg_dict.get('attrs_sel', None)
+
+
+    # Grab the attributes of interest from the attribute config file,
+    #  OR a .csv file if specified in the algo config file.
+    name_attr_csv = algo_cfg.get('name_attr_csv')
+    colname_attr_csv = algo_cfg.get('colname_attr_csv')
+    attrs_sel = fsate._id_attrs_sel_wrap(attr_cfig=attr_cfig,
+                    path_cfig=path_attr_config,
+                    name_attr_csv = name_attr_csv,
+                    colname_attr_csv = colname_attr_csv)
+    
+    # Define directories/datasets from the attribute config file
     dir_db_attrs = attr_cfig.attrs_cfg_dict.get('dir_db_attrs')
     dir_std_base = attr_cfig.attrs_cfg_dict.get('dir_std_base')
     dir_base = attr_cfig.attrs_cfg_dict.get('dir_base')
