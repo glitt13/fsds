@@ -4,7 +4,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.pipeline import make_pipeline
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV,learning_curve
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -19,7 +19,8 @@ import joblib
 import itertools
 import yaml
 import warnings
-
+import matplotlib.pyplot as plt
+import matplotlib
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
     def __init__(self, path_attr_config: str | os.PathLike):
@@ -82,10 +83,35 @@ class AttrConfigAndVars:
                             'dir_std_base': dir_std_base,
                             'dir_base': dir_base,
                             'datasets': datasets}
+def _check_attr_rm_dupes(attr_df:pd.DataFrame, 
+                   uniq_cols:list = ['featureID','featureSource','data_source','attribute','value'],
+                   sort_col:str = 'dl_timestamp',
+                   ascending=True)-> pd.DataFrame:
+    """Check if duplicate attributes exist in the dataset. If so, remove them.
 
+    :param attr_df: The standard dataframe of attributes, location identifierws and their values
+    :type attr_df: pd.DataFrame
+    :param uniq_cols: The columns in attr_df to be tested for duplication, defaults to ['featureID','featureSource','data_source','attribute','value']
+    :type uniq_cols: list, optional
+    :param sort_col: The column name of the timestamps. Default 'dl_timestamp'
+    :type sort_col: str, optional
+    :param ascending: The argument to pass into sort_values on the `sort_col`. If ascending = False, the most recent timestamp will be kept, and the oldest with True. Default True.
+    :type ascending: bool, optional
+    :return: The dataframe with removed attributes
+    :rtype: pd.DataFrame
+
+    note:: When ascending = False, the most recent timestamp will be kept, and the oldest with True.
+    """
+
+    if attr_df[['featureID','attribute']].duplicated().any():
+        print("Duplicate attribute data exist. Work to remove these using proc.attr.hydfab R package")
+        attr_df = attr_df.sort_values(sort_col, ascending = False)
+        attr_df = attr_df.drop_duplicates(subset=uniq_cols, keep='first')
+    return attr_df
 
 def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterable, attrs_sel: str | Iterable = 'all',
-                       _s3 = None,storage_options=None,read_type:str=['all','filename'][0])-> pd.DataFrame:
+                       _s3 = None,storage_options=None,read_type:str=['all','filename'][0],
+                       reindex:bool=False)-> pd.DataFrame:
     """Read attribute data acquired using proc.attr.hydfab R package & subset to desired attributes
 
     :param dir_db_attrs: directory where attribute .parquet files live
@@ -101,6 +127,8 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
     :param read_type: should all parquet files be lazy-loaded, assign 'all'
      otherwise just files with comids_resp in the file name? assign 'filename'. Defaults to 'all'
     :type read_type: str
+    :param reindex: Should attribute dataframe be reindexed? Default False
+    :type reindex: bool
     :return: dict of the following keys:
         - `attrs_sel`
         - `dir_db_attrs`
@@ -142,7 +170,9 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
     if attr_df_sub.shape[0] == 0:
         warnings.warn(f'The provided attributes do not exist with the retrieved featureIDs : \
                         \n {",".join(attrs_sel)}',UserWarning)
- 
+    # Remove any duplicates
+    attr_df_sub = _check_attr_rm_dupes(attr_df=attr_df_sub)
+
     # Run check that all variables are present across all basins
     dict_rslt = _check_attributes_exist(attr_df_sub,attrs_sel)
     attr_df_sub, attrs_sel_ser = dict_rslt['df_attr'], dict_rslt['attrs_sel']
@@ -156,6 +186,10 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
                       which may be problematic for some algo training/testing. \
                       \nConsider reprocessing the attribute grabber (proc.attr.hydfab R package)',
                       UserWarning)
+        
+    # TODO should re-indexing happen???
+    if reindex:
+        attr_df_sub = attr_df_sub.reindex()
 
     return attr_df_sub
 
@@ -173,8 +207,8 @@ def _check_attributes_exist(df_attr: pd.DataFrame, attrs_sel:pd.Series | Iterabl
     """
     #
     if not isinstance(attrs_sel,pd.Series):
-            # Convert to a series for convenience of pd.Series.isin()
-            attrs_sel = pd.Series(attrs_sel)
+        # Convert to a series for convenience of pd.Series.isin()
+        attrs_sel = pd.Series(attrs_sel)
 
     # Run check that all attributes are present for all basins
     if df_attr.groupby('featureID')['attribute'].count().nunique() != 1:
@@ -186,7 +220,11 @@ def _check_attributes_exist(df_attr: pd.DataFrame, attrs_sel:pd.Series | Iterabl
         warnings.warn(f"    TOTAL unique locations with missing attributes: {len(bad_comids)}",UserWarning)
         df_attr_sub_missing = df_attr[df_attr['featureID'].isin(bad_comids)]
     
-        missing_attrs = attrs_sel[~attrs_sel.isin(df_attr_sub_missing['attribute'])]
+        if isinstance(attrs_sel,list):
+            missing_attrs = [attr for attr in attrs_sel if attr not in set(df_attr_sub_missing['attribute'])]
+            missing_attrs = pd.DataFrame({'attribute':missing_attrs})
+        else:
+            missing_attrs = attrs_sel[~attrs_sel.isin(df_attr_sub_missing['attribute'])]
         warnings.warn(f"    TOTAL MISSING ATTRS: {len(missing_attrs)}",UserWarning)
         str_missing = '\n    '.join(missing_attrs.values)
 
@@ -200,6 +238,32 @@ def _check_attributes_exist(df_attr: pd.DataFrame, attrs_sel:pd.Series | Iterabl
         
     
     return {'df_attr': df_attr, 'attrs_sel': attrs_sel}
+
+
+def _id_attrs_sel_wrap(attr_cfig: AttrConfigAndVars,
+                    path_cfig: str | os.PathLike = None,
+                    name_attr_csv: str = None,
+                    colname_attr_csv: str = None) -> list:
+    """Get attributes of interest from a csv file with column name, or the attribute config object
+
+    :param attr_cfig: The attribute config file object generated using fs_algo_train_eval.AttrConfigAndVars
+    :type attr_cfig: AttrConfigAndVars
+    :param path_cfig: Optional path to a file, that also lives in the same directory as the `name_attr_csv`, defaults to None
+    :type path_cfig: str | os.PathLike
+    :param name_attr_csv: The name of the csv file containing the attribute listing of interest, defaults to None
+    :type name_attr_csv: str, optional
+    :param colname_attr_csv: The column name inside the csv file containing the attributes of interest, defaults to None
+    :type colname_attr_csv: str, optional
+    :return: list of all attributes of interest, likely to use for training/prediction
+    :rtype: list
+    """
+    if name_attr_csv:
+        path_attr_csv = build_cfig_path(path_cfig,name_attr_csv)
+        attrs_sel = pd.read_csv(path_attr_csv)[colname_attr_csv].tolist()
+    else:
+        attrs_sel = attr_cfig.attrs_cfg_dict.get('attrs_sel', None)
+
+    return attrs_sel
 
 def _find_feat_srce_id(dat_resp: Optional[xr.core.dataset.Dataset] = None,
                        attr_config: Optional[Dict] = None) -> List[str]:
@@ -788,6 +852,11 @@ class AlgoTrainEval:
         self.eval_df['algo'] = self.eval_df.index
         self.eval_df = self.eval_df.reset_index()
     
+
+    # # TODO consider learning curve 
+    # model = RandomForestRegressor(oob_score=True, random_state=self.rs, 
+    #                             n_estimators=self.algo_config['rf'].get('n_estimators'))
+
     def train_eval(self):
         """ The overarching train, test, evaluation wrapper that also saves algorithms and evaluation results
 
@@ -818,3 +887,66 @@ class AlgoTrainEval:
         # Generate metadata dataframe
         self.org_metadata_alg() # Must be called after save_algos()
         
+
+# %% Algorithm evaluation: learning curve, plotting
+class AlgoEvalPlot:
+    def __init__(self,train_eval:AlgoTrainEval):
+        self.train_eval = train_eval
+
+        # The entire dataset of predictors/response    
+        self.X = pd.DataFrame()
+        self.y = np.ndarray()
+        self.all_X_all_y() # Populate X & y
+
+        # Initialize Learning curve objects
+        self.train_sizes_lc = np.ndarray()
+        self.train_scores_lc = np.ndarray()
+
+    def all_X_all_y(self):
+        # Combine the train/test splits into a single dataframe/array
+        self.X = pd.concat([self.train_eval.X_train,  self.train_eval.X_test])
+        self.y = pd.concat([self.train_eval.y_test, self.train_eval.y_train])
+
+    def gen_learning_curve(self,model, cv = 5,n_jobs=-1,
+                            train_sizes =np.linspace(0.1, 1.0, 10),
+                            scoring = 'neg_mean_squared_error'
+                            ):
+        
+        # Generate learning curve data
+        self.train_sizes_lc, train_scores_lc, valid_scores_lc = learning_curve(
+            model, self.X, self.y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes, 
+            scoring=scoring
+        )
+
+        # Calculate mean and standard deviation
+        self.train_mean_lc = np.mean(-train_scores_lc, axis=1)  # Negate to get positive MSE
+        self.train_std_lc = np.std(-train_scores_lc, axis=1)
+        self.valid_mean_lc = np.mean(-valid_scores_lc, axis=1)
+        self.valid_std_lc = np.std(-valid_scores_lc, axis=1)
+
+        
+    def plot_learning_curve(self,ylabel_scoring = 'Mean Squared Error (MSE)',
+                            title='Learning Curve',
+                            training_uncn = False) -> matplotlib.figure.Figure:
+        # GENERATE LEARNING CURVE FIGURE 
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.train_sizes_lc, self.train_mean_lc, 'o-', label='Training error')
+        plt.plot(self.train_sizes_lc, self.valid_mean_lc, 'o-', label='Cross-validation error')
+        if training_uncn:
+            plt.fill_between(self.train_sizes_lc, self.train_mean_lc - self.train_std_lc, self.train_mean_lc + self.train_std_lc, alpha=0.1, color="r", label='Training uncertainty')
+        plt.fill_between(self.train_sizes_lc, self.valid_mean_lc - self.valid_std_lc, self.valid_mean_lc + self.valid_std_lc, alpha=0.1, color="g", label='Cross-validation uncertainty')
+        plt.xlabel('Training Size', fontsize = 18)
+        plt.ylabel(ylabel_scoring, fontsize = 18)
+        plt.title(title)
+        plt.legend(loc='best', prop={'size': 14})
+        plt.grid(True)
+
+        # Adjust tick parameters for larger font size 
+        plt.tick_params(axis='both', which='major', labelsize=15)
+        plt.tick_params(axis='both', which='minor', labelsize=15)
+
+        plt.show()
+
+        fig = plt.gcf()
+        return fig
+
