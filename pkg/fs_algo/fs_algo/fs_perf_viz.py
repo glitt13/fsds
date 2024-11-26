@@ -59,6 +59,8 @@ if __name__ == "__main__":
     path_pred_config = fsate.build_cfig_path(path_viz_config,viz_cfg.get('name_pred_config',None)) # currently, this gives the pred config path, not the attr config path
     pred_cfg = yaml.safe_load(open(path_pred_config, 'r'))
     path_attr_config = fsate.build_cfig_path(path_pred_config,pred_cfg.get('name_attr_config',None)) 
+    ds_type = pred_cfg.get('ds_type')
+    write_type = pred_cfg.get('write_type')
 
     # Get features from the attr config file --------------------------
     with open(path_attr_config, 'r') as file:
@@ -68,19 +70,17 @@ if __name__ == "__main__":
     dir_base = list([x for x in attr_cfg['file_io'] if 'dir_base' in x][0].values())[0]
     dir_std_base = list([x for x in attr_cfg['file_io'] if 'dir_std_base' in x][0].values())[0]
     dir_std_base = f'{dir_std_base}'.format(dir_base = dir_base)
-    # Options for getting ds_type from a config file:
-    # ds_type = viz_cfg.get('ds_type') # prediction config file IF VISUALIZING PREDICTIONS; attribute config file IF AND ONLY IF VISUALIZING ATTRIBUTES
-    # ds_type = list([x for x in attr_cfg['file_io'] if 'ds_type' in x][0].values())[0]
-    # ...but for plotting purposes, we want to use the prediction ds_type:
-    ds_type = 'prediction'
-    write_type = list([x for x in attr_cfg['file_io'] if 'write_type' in x][0].values())[0]
 
     # Get features from the main config file --------------------------
     # NOTE: This assumes that the main config file is just called [same prefix as all other config files]_config.yaml
+    # Build the path to the main config file by referencing the other config files we've already read in
     prefix_viz = str(path_viz_config.name).split('_')[0]
     prefix_attr = str(path_attr_config.name).split('_')[0]
     if (prefix_viz != prefix_attr):
-        raise ValueError('The base config file (e.g. [dataset]_config.yaml) must be in the same direcotry and identifiable using the same prefix as the other config files (e.g. [dataset]_pred_config.yaml, [dataset]_attr_config.yaml, etc.)')
+        raise ValueError('All config files must be in the same directory and be\
+                          identifiable using the same prefix as each other (e.g.\
+                          [dataset]_config.yaml, [dataset]_pred_config.yaml, \
+                         [dataset]_attr_config.yaml, etc.)')
     else:
         prefix = prefix_viz
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 path_pred = fsate.std_pred_path(dir_out,algo=algo,metric=metric,dataset_id=ds)
                 pred = pd.read_parquet(path_pred)
                 data = pd.merge(meta_pred, pred, how = 'inner', on = 'comid')
-                os.makedirs(f'{dir_out}/data_visualizations', exist_ok= True)
+                Path(f'{dir_out}/data_visualizations').mkdir(parents=True, exist_ok=True)
                 # If you want to export the merged data for any reason: 
                 # data.to_csv(f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_data.csv')
 
@@ -127,10 +127,10 @@ if __name__ == "__main__":
                     zip_filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.zip'
                     filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.shp'
 
-                    if not os.path.exists(zip_filename):
+                    if not Path(zip_filename).exists():
                         print('Downloading shapefile...')
                         urllib.request.urlretrieve(url, zip_filename)
-                    if not os.path.exists(filename):
+                    if not Path(filename).exists():
                         with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
                             zip_ref.extractall(f'{dir_out}/data_visualizations')
 
