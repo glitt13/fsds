@@ -63,13 +63,11 @@ if __name__ == "__main__":
     write_type = pred_cfg.get('write_type')
 
     # Get features from the attr config file --------------------------
-    with open(path_attr_config, 'r') as file:
-        attr_cfg = yaml.safe_load(file)
-
-    datasets = list([x for x in attr_cfg['formulation_metadata'] if 'datasets' in x][0].values())[0] # Identify datasets of interest
-    dir_base = list([x for x in attr_cfg['file_io'] if 'dir_base' in x][0].values())[0]
-    dir_std_base = list([x for x in attr_cfg['file_io'] if 'dir_std_base' in x][0].values())[0]
-    dir_std_base = f'{dir_std_base}'.format(dir_base = dir_base)
+    attr_cfg = fsate.AttrConfigAndVars(path_attr_config)
+    attr_cfg._read_attr_config()
+    datasets = attr_cfg.attrs_cfg_dict.get('datasets')
+    dir_base = attr_cfg.attrs_cfg_dict.get('dir_base')  
+    dir_std_base = attr_cfg.attrs_cfg_dict.get('dir_std_base')
 
     # Get features from the main config file --------------------------
     # NOTE: This assumes that the main config file is just called [same prefix as all other config files]_config.yaml
