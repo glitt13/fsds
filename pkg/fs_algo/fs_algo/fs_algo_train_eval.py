@@ -104,8 +104,8 @@ def _check_attr_rm_dupes(attr_df:pd.DataFrame,
     """
 
     if attr_df[['featureID','attribute']].duplicated().any():
-        print("Duplicate attribute data exist. Work to remove these using proc.attr.hydfab R package")
-        attr_df = attr_df.sort_values(sort_col, ascending = False)
+        print("Duplicate attribute data exist. Attempting to remove using fs_algo_train_eval._check_attr_rm_dupes().")
+        attr_df = attr_df.sort_values(sort_col, ascending = ascending)
         attr_df = attr_df.drop_duplicates(subset=uniq_cols, keep='first')
     return attr_df
 
@@ -538,6 +538,7 @@ def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> 
         raise ValueError(f"NEED TO ADD CAPABILITY THAT HANDLES {Path(path_pred_locs).suffix} file extensions")
     comids_pred = [str(x) for x in comids_pred]
     return comids_pred
+
 class AlgoTrainEval:
     def __init__(self, df: pd.DataFrame, attrs: Iterable[str], algo_config: dict,
                  dir_out_alg_ds: str | os.PathLike, dataset_id: str,
@@ -598,7 +599,6 @@ class AlgoTrainEval:
         # The evaluation summary result
         self.eval_df = pd.DataFrame()
 
-    
     def split_data(self):
         """Split dataframe into training and testing predictors (X) and response (y) variables using :func:`sklearn.model_selection.train_test_split`
 
@@ -621,7 +621,13 @@ class AlgoTrainEval:
         y = self.df_non_na[self.metric]
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X,y, test_size=self.test_size, random_state=self.rs)
 
-    
+    def all_X_all_y(self):
+        # Combine the train/test splits into a single dataframe/array
+        # This may be called after calling AlgoTrainEval.split_data()
+        X = pd.concat([self.X_train,  self.X_test])
+        y = pd.concat([self.y_test, self.y_train])
+        return X, y
+
     def convert_to_list(self,d:dict) ->dict:
         """Runcheck: In situations where self.algo_config_grid is used, all objects must be iterables 
 
@@ -729,7 +735,6 @@ class AlgoTrainEval:
                                      'type': 'multi-layer perceptron regressor',
                                      'metric': self.metric}
 
-   
     def train_algos_grid_search(self):
         """Train algorithms using GridSearchCV based on the algo config file.
         
@@ -895,17 +900,14 @@ class AlgoEvalPlot:
 
         # The entire dataset of predictors/response    
         self.X = pd.DataFrame()
-        self.y = np.ndarray()
+        self.y = np.empty(1)
         self.all_X_all_y() # Populate X & y
 
         # Initialize Learning curve objects
-        self.train_sizes_lc = np.ndarray()
-        self.train_scores_lc = np.ndarray()
+        self.train_sizes_lc = np.empty(1)
+        self.train_scores_lc = np.empty(1)
 
-    def all_X_all_y(self):
-        # Combine the train/test splits into a single dataframe/array
-        self.X = pd.concat([self.train_eval.X_train,  self.train_eval.X_test])
-        self.y = pd.concat([self.train_eval.y_test, self.train_eval.y_train])
+
 
     def gen_learning_curve(self,model, cv = 5,n_jobs=-1,
                             train_sizes =np.linspace(0.1, 1.0, 10),
@@ -938,7 +940,7 @@ class AlgoEvalPlot:
         plt.xlabel('Training Size', fontsize = 18)
         plt.ylabel(ylabel_scoring, fontsize = 18)
         plt.title(title)
-        plt.legend(loc='best', prop={'size': 14})
+        plt.legend(loc='best')
         plt.grid(True)
 
         # Adjust tick parameters for larger font size 
@@ -949,4 +951,3 @@ class AlgoEvalPlot:
 
         fig = plt.gcf()
         return fig
-
