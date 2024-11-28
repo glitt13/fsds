@@ -103,7 +103,7 @@ if __name__ == "__main__":
         df_attr_wide = df_attr.pivot(index='featureID', columns = 'attribute', values = 'value')
 
 
-        #%% Characterize dataset correlations:
+        #%% Characterize dataset correlations & principal components:
         # Attribute correlation matrix (writes to file)
         fig_corr_mat = fsate.plot_corr_mat_save_wrap(df_X=df_attr_wide,
                                       title=f'Correlation matrix from {ds} dataset',
@@ -115,6 +115,14 @@ if __name__ == "__main__":
                                                        dir_out_anlys_base=dir_out_anlys_base,
                                                        ds = ds,
                                                        corr_thr=0.8)
+        
+
+        # Principal component analysis
+        pca_rslt = fsate.plot_pca_save_wrap(df_X=df_attr_wide, 
+                        dir_out_viz_base=dir_out_viz_base,
+                        ds = ds, 
+                        std_scale=True # Apply the StandardScaler.
+                        )
 
         # %% Train, test, and evaluate
         rslt_eval = dict()
