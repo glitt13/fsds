@@ -21,6 +21,7 @@ import yaml
 import warnings
 import matplotlib.pyplot as plt
 import matplotlib
+import pathlib
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
     def __init__(self, path_attr_config: str | os.PathLike):
@@ -415,8 +416,16 @@ def fs_save_algo_dir_struct(dir_base: str | os.PathLike ) -> dict:
     dir_out_alg_base = Path(dir_out/Path('trained_algorithms'))
     dir_out_alg_base.mkdir(exist_ok=True)
 
+    # The analysis directory
+    dir_out_anlys_base = Path(Path(dir_out)/"analysis")
+    dir_out_anlys_base.mkdir(parents=True, exist_ok=True)
+
+    # The data visualization directory
+    # TODO insert function that Lauren creates here
+
     out_dirs = {'dir_out': dir_out,
-                'dir_out_alg_base': dir_out_alg_base}
+                'dir_out_alg_base': dir_out_alg_base,
+                'dir_out_anlys_base' : dir_out_anlys_base}
 
     return out_dirs
 
@@ -951,3 +960,32 @@ class AlgoEvalPlot:
 
         fig = plt.gcf()
         return fig
+    
+
+# %% RANDOM-FOREST FEATURE IMPORTANCE
+def _extr_rf_algo(train_eval:AlgoTrainEval)->RandomForestRegressor:
+    if 'rf' in train_eval.algs_dict.keys():
+        rfr = train_eval.algs_dict['rf']['algo']
+    else:
+        print("Trained random forest object 'rf' non-existent in the provided AlgoTrainEval class object.",
+              "Check to make sure the algo processing config file creates a random forest. Then make sure the ")
+        rfr = None
+    return rfr
+
+def plot_rf_importance(feat_imprt,attrs, title):
+    df_feat_imprt = pd.DataFrame({'attribute': attrs,
+                                'importance': feat_imprt}).sort_values(by='importance', ascending=False)
+    # Calculate the correlation matrix
+    plt.figure(figsize=(10,6))
+    plt.barh(df_feat_imprt['attribute'], df_feat_imprt['importance'])
+    plt.xlabel('Importance')
+    plt.ylabel('Attribute')
+    plt.title(title)
+    plt.show()
+
+    fig = plt.gcf()
+    return fig
+
+def save_feat_imp_fig(fig_feat_imp, path_fig_imp):
+    fig_feat_imp.save(path_fig_imp)
+    print(f"Wrote feature importance figure to {path_fig_imp}")
