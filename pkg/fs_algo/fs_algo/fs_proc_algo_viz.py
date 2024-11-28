@@ -66,9 +66,12 @@ if __name__ == "__main__":
     datasets = attr_cfig.attrs_cfg_dict.get('datasets') # Identify datasets of interest
 
     #%%  Generate standardized output directories
-    dir_out = fsate.fs_save_algo_dir_struct(dir_base).get('dir_out')
-    dir_out_alg_base = fsate.fs_save_algo_dir_struct(dir_base).get('dir_out_alg_base')
-    
+    dirs_std_dict = fsate.fs_save_algo_dir_struct(dir_base)
+    dir_out = dirs_std_dict.get('dir_out')
+    dir_out_alg_base = dirs_std_dict.get('dir_out_alg_base')
+    dir_out_anlys_base = dirs_std_dict.get('dir_out_anlys_base')
+    dir_out_viz_base = dirs_std_dict.get('dir_out_viz_base')
+
     # %% Looping over datasets
     for ds in datasets: 
         print(f'PROCESSING {ds} dataset inside \n {dir_std_base}')
@@ -99,7 +102,21 @@ if __name__ == "__main__":
         # Convert into wide format for model training
         df_attr_wide = df_attr.pivot(index='featureID', columns = 'attribute', values = 'value')
 
-    # %% Train, test, and evaluate
+
+        #%% Characterize dataset correlations:
+        # Attribute correlation matrix (writes to file)
+        fig_corr_mat = fsate.plot_corr_mat_save_wrap(df_X=df_attr_wide,
+                                      title=f'Correlation matrix from {ds} dataset',
+                                      dir_out_viz_base=dir_out_viz_base,
+                                      ds=ds)
+        
+        # Attribute correlation results based on a correlation threshold (writes to file)
+        df_corr_rslt = fsate.corr_thr_write_table_wrap(df_X=df_attr_wide,
+                                                       dir_out_anlys_base=dir_out_anlys_base,
+                                                       ds = ds,
+                                                       corr_thr=0.8)
+
+        # %% Train, test, and evaluate
         rslt_eval = dict()
         for metr in metrics:
             print(f' - Processing {metr}')
@@ -121,9 +138,42 @@ if __name__ == "__main__":
                                         metr=metr,test_size=test_size, rs = seed,
                                         verbose=verbose)
             train_eval.train_eval() # Train, test, eval wrapper
-
+            
             # Retrieve evaluation metrics dataframe
             rslt_eval[metr] = train_eval.eval_df
+
+
+            # TODO convert viz into function and/or class objects
+
+
+            # TODO generate a file of the correlated attributes:
+
+
+            dir_out_viz_base
+            # TODO
+
+
+
+            # Create visualizations
+            y_test = train_eval.y_test
+            df_X, y_all = train_eval.all_X_all_y()
+            # TODO extract y_pred for each model
+            rfr = fsate._extr_rf_algo(train_eval)
+            if rfr:
+                feat_imprt = rfr.feature_importances_
+                title_rf_imp = f"Random Forest feature importance for {metr}"
+                fig_feat_imp = fsate.plot_rf_importance(feat_imprt, attrs=df_X.columns, title= title_rf_imp)
+                # Save figure:
+                # TODO path_fig_imp
+                fsate.save_feat_imp_fig(fig_feat_imp, path_fig_imp)
+
+            for modl in train_eval.preds_dict.keys():
+                
+                              
+                            
+
+
+
             del train_eval
         # Compile results and write to file
         rslt_eval_df = pd.concat(rslt_eval).reset_index(drop=True)

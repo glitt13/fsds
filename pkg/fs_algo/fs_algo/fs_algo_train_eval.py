@@ -22,6 +22,7 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib
 import pathlib
+import seaborn as sns
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
     def __init__(self, path_attr_config: str | os.PathLike):
@@ -397,7 +398,8 @@ def fs_save_algo_dir_struct(dir_base: str | os.PathLike ) -> dict:
     :param dir_base: The base directory for saving output
     :type dir_base: str | os.PathLike
     :raises ValueError: If the base directory does not exist
-    :return: Full paths to the `output` and `trained_algorithms` directories
+    :return: Full paths to the `output`, `trained_algorithms`,
+     `analysis` and `data_visualization` directories
     :rtype: dict
     """
 
@@ -416,16 +418,23 @@ def fs_save_algo_dir_struct(dir_base: str | os.PathLike ) -> dict:
     dir_out_alg_base = Path(dir_out/Path('trained_algorithms'))
     dir_out_alg_base.mkdir(exist_ok=True)
 
+    # TODO consider compatibility with std_pred_path
+    dir_preds_base = Path(dir_out/Path('algorithm_predictions'))
+    dir_preds_base.mkdir(exist_ok=True)
+
     # The analysis directory
-    dir_out_anlys_base = Path(Path(dir_out)/"analysis")
-    dir_out_anlys_base.mkdir(parents=True, exist_ok=True)
+    dir_out_anlys_base = Path(dir_out/Path("analysis"))
+    dir_out_anlys_base.mkdir(exist_ok=True)
 
     # The data visualization directory
-    # TODO insert function that Lauren creates here
+    dir_out_viz_base = Path(dir_out/Path("data_visualizations"))
+    # TODO insert dir that Lauren creates here
 
     out_dirs = {'dir_out': dir_out,
                 'dir_out_alg_base': dir_out_alg_base,
-                'dir_out_anlys_base' : dir_out_anlys_base}
+                'dir_out_preds_base' : dir_preds_base,
+                'dir_out_anlys_base' : dir_out_anlys_base,
+                'dir_out_viz_base' : dir_out_viz_base}
 
     return out_dirs
 
@@ -512,6 +521,7 @@ def std_pred_path(dir_out: str | os.PathLike, algo: str, metric: str, dataset_id
     :return: full save path for parquet dataframe object of results
     :rtype: str
     """
+    # TODO consider refactoring this to pass in dir_out_preds_base instead
     dir_preds_base = Path(Path(dir_out)/Path('algorithm_predictions'))
     dir_preds_ds = Path(dir_preds_base/Path(dataset_id))
     dir_preds_ds.mkdir(exist_ok=True,parents=True)
@@ -900,7 +910,151 @@ class AlgoTrainEval:
 
         # Generate metadata dataframe
         self.org_metadata_alg() # Must be called after save_algos()
-        
+# %% DATASERT CORRELATION ANALYSIS
+
+def plot_corr_mat(df_X: pd.DataFrame,
+                title='Feature Correlation Matrix'
+                ) -> matplotlib.figure.Figure:
+    """Generate a plot of the correlation matrix
+
+    :param df_X: The dataset dataframe
+    :type df_X: pd.DataFrame
+    :param title: Plot title, defaults to 'Feature Correlation Matrix'
+    :type title: str, optional
+    :return: The correlation matrix figure
+    :rtype: matplotlib.figure.Figure
+    """
+    # Calculate the correlation matrix
+    df_corr = df_X.corr()
+
+    #  Plot the correlation matrix
+    plt.figure(figsize=(10,8))
+    sns.heatmap(df_corr, annot=True, cmap ='coolwarm',linewidths=0.5, fmt='.2f')
+    plt.title(title)
+
+    fig = plt.gcf()
+    return fig
+
+def std_corr_mat_plot_path(dir_out_viz_base: str | os.PathLike,
+                            ds: str
+                            ) -> pathlib.PosixPath:
+    """Standardize the filepath for saving correlation matrix above a threshold
+
+    :param dir_out_viz_base: The base visualization output directory
+    :type dir_out_viz_base: str | os.PathLike
+    :param ds: The dataset name
+    :type ds: str
+    :return: The correlation matrix filepath
+    :rtype: pathlib.PosixPath
+    """
+    path_corr_mat = Path(f"{dir_out_viz_base}/{ds}/correlation_matrix_{ds}.png")
+    path_corr_mat.parent.mkdir(parents=True,exist_ok=True)
+    return path_corr_mat
+
+def plot_corr_mat_save_wrap(df_X:pd.DataFrame, title:str,
+                            dir_out_viz_base:str | os.PathLike,
+                            ds:str)-> matplotlib.figure.Figure:
+    """Wrapper to plot and save the dataset correlation matrix
+
+    :param df_X: The full dataset of interest, e.g. used for training/validation
+    :type df_X: pd.DataFrame
+    :param title: Title to place in the correlation matrix plot
+    :type title: str
+    :param dir_out_viz_base: base directory for saving visualization
+    :type dir_out_viz_base: str | os.PathLike
+    :param ds: The dataset name to use in plot title and filename
+    :type ds: str
+    :return: The correlation matrix plot
+    :rtype: matplotlib.figure.Figure
+    """
+    fig_corr_mat = plot_corr_mat(df_X, title)
+    path_corr_mat = std_corr_mat_plot_path(dir_out_viz_base,ds)
+    fig_corr_mat.savefig(path_corr_mat)
+    print(f"Wrote the {ds} dataset correlation matrix to:\n{path_corr_mat}")
+    return fig_corr_mat
+
+def std_corr_path(dir_out_anlys_base: str|os.PathLike, ds:str,
+                   cstm_str:str=None) -> pathlib.PosixPath:
+    """Standardize the filepath that saves correlated attributes
+
+    :param dir_out_anlys_base: The standardized analysis output directory
+    :type dir_out_anlys_base: str | os.PathLike
+    :param ds: the dataset name
+    :type ds: str
+    :param cstm_str: The option to add in a custom string such as the correlation threshold, defaults to None
+    :type cstm_str: str, optional
+    :return: Full filepath for saving correlated attributes table
+    :rtype: pathlib.PosixPath
+    """
+    # TODO generate a file of the correlated attributes:
+    if cstm_str:
+        path_corr_attrs = Path(f"{dir_out_anlys_base}/{ds}/correlated_attrs_{ds}_{cstm_str}.csv")
+    else:
+        path_corr_attrs = Path(f"{dir_out_anlys_base}/{ds}/correlated_attrs_{ds}.csv")
+    path_corr_attrs.parent.mkdir(parents=True,exist_ok=True)
+    return path_corr_attrs
+
+def corr_attrs_thr_table(df_X:pd.DataFrame, 
+                        corr_thr:float = 0.8) -> pd.DataFrame:
+    """Create a table of correlated attributes exceeding a threshold, with correlation values
+
+    :param df_X: The attribute dataset
+    :type df_X: pd.DataFrame
+    :param corr_thr: The correlation threshold, between 0 & 1. Absolute values above this should be reduced, defaults to 0.8
+    :type corr_thr: float, optional
+    :return: The table of attribute pairings whose absolute correlations exceed a threshold
+    :rtype: pd.DataFrame
+    """
+    df_corr = df_X.corr()
+
+    # TODO Change code to selecting upper triangle of correlation matrix
+    upper = df_corr.abs().where(np.triu(np.ones(df_corr.shape), k=1).astype(bool))
+
+    # Find attributes with correlation greater than a certain threshold
+    row_idx, col_idx = np.where(df_corr.abs() > corr_thr)
+    df_corr_rslt = pd.DataFrame({'attr1': df_corr.columns[row_idx],
+                'attr2': df_corr.columns[col_idx],
+                'corr' : [df_corr.iat[row, col] for row, col in zip(row_idx, col_idx)]
+                })
+    # Remove the identical attributes
+    df_corr_rslt = df_corr_rslt[df_corr_rslt['attr1']!= df_corr_rslt['attr2']].drop_duplicates()
+    return df_corr_rslt
+
+def write_corr_attrs_thr(df_corr_rslt:pd.DataFrame,path_corr_attrs: str | os.PathLike):
+    """Wrapper to generate high correlation pairings table and write to file
+
+    :param df_corr_rslt: _description_
+    :type df_corr_rslt: pd.DataFrame
+    :param path_corr_attrs: csv write path
+    :type path_corr_attrs: str | os.PathLike
+    """
+
+    df_corr_rslt.to_csv(path_corr_attrs) # INSPECT THIS FILE 
+    print(f"Wrote highly correlated attributes to {path_corr_attrs}")
+    print("The user may now inspect the correlated attributes and make decisions on which ones to exclude")
+
+def corr_thr_write_table_wrap(df_X:pd.DataFrame,dir_out_anlys_base:str|os.PathLike,
+                              ds:str,corr_thr:float=0.8)->pd.DataFrame:
+    """Wrapper to generate high correlation pairings table above an absolute threshold of interest and write to file
+    
+    :param df_X: The attribute dataset
+    :type df_X: pd.DataFrame
+    :param dir_out_anlys_base: The standard analysis directory
+    :type path_corr_attrs: str | os.PathLike
+    :param ds: The dataset name
+    :type ds: str
+    :param corr_thr: The correlation threshold, between 0 & 1. Absolute values above this detected, defaults to 0.8
+    :type corr_thr: float, optional
+    :return: The table of attribute pairings whose absolute correlations exceed a threshold
+    :rtype: pd.DataFrame
+    """
+    # Generate the paired table of attributes correlated above an absolute threshold
+    df_corr_rslt = corr_attrs_thr_table(df_X,corr_thr)
+    path_corr_attrs_cstm = std_corr_path(dir_out_anlys_base=dir_out_anlys_base,
+                                          ds=ds,
+                                         cstm_str=f'thr{corr_thr}') 
+    write_corr_attrs_thr(df_corr_rslt,path_corr_attrs_cstm)
+    return df_corr_rslt
 
 # %% Algorithm evaluation: learning curve, plotting
 class AlgoEvalPlot:
@@ -960,7 +1114,7 @@ class AlgoEvalPlot:
 
         fig = plt.gcf()
         return fig
-    
+
 
 # %% RANDOM-FOREST FEATURE IMPORTANCE
 def _extr_rf_algo(train_eval:AlgoTrainEval)->RandomForestRegressor:
