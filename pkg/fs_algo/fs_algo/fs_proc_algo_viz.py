@@ -150,34 +150,24 @@ if __name__ == "__main__":
             # Retrieve evaluation metrics dataframe
             rslt_eval[metr] = train_eval.eval_df
 
-
-            # TODO convert viz into function and/or class objects
-
-
-            # TODO generate a file of the correlated attributes:
-
-
-            dir_out_viz_base
-            # TODO
-
-
-
-            # Create visualizations
+            #%% Random Forest Feature Importance
             y_test = train_eval.y_test
             df_X, y_all = train_eval.all_X_all_y()
-            # TODO extract y_pred for each model
-            rfr = fsate._extr_rf_algo(train_eval)
-            if rfr:
-                feat_imprt = rfr.feature_importances_
-                title_rf_imp = f"Random Forest feature importance for {metr}"
-                fig_feat_imp = fsate.plot_rf_importance(feat_imprt, attrs=df_X.columns, title= title_rf_imp)
-                # Save figure:
-                # TODO path_fig_imp
-                fsate.save_feat_imp_fig(fig_feat_imp, path_fig_imp)
 
+            # See if random forest may be extrained from the AlgoTrainEval class object:
+            rfr = fsate._extr_rf_algo(train_eval)
+            if rfr: # Generate & save the feature importance plot
+                fsate.save_feat_imp_fig_wrap(rfr=rfr,
+                           attrs=df_X.columns,
+                           dir_out_viz_base=dir_out_viz_base,
+                           ds=ds,metr=metr)
+
+
+            # %% Model testing results visualization
+            # TODO extract y_pred for each model
             for modl in train_eval.preds_dict.keys():
-                
-                              
+                print("TODO: Add Lauren's viz funcs")
+                # TODO write y_test and y_pred to file
                             
 
 
