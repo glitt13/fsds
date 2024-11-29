@@ -850,7 +850,7 @@ class AlgoTrainEval:
         return self.eval_dict
 
     def save_algos(self):
-        """ Write pipeline to file & record save path in `algs_dict['loc_pipe']`
+        """ Write pipeline to file & record save path in `algs_dict['file_pipe']`
 
         """
         
@@ -863,7 +863,7 @@ class AlgoTrainEval:
             # path_algo = Path(self.dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
             # write trained algorithm
             joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
-            self.algs_dict[algo]['loc_pipe'] = str(path_algo)
+            self.algs_dict[algo]['file_pipe'] = str(path_algo.name)
    
     def org_metadata_alg(self):
         """Must be called after running AlgoTrainEval.save_algos(). Records saved location of trained algorithm
@@ -875,7 +875,7 @@ class AlgoTrainEval:
         self.eval_df['dataset'] = self.dataset_id
 
         # Assign the locations where algorithms were saved
-        self.eval_df['loc_pipe'] = [self.algs_dict[alg]['loc_pipe'] for alg in self.algs_dict.keys()] 
+        self.eval_df['file_pipe'] = [self.algs_dict[alg]['file_pipe'] for alg in self.algs_dict.keys()] 
         self.eval_df['algo'] = self.eval_df.index
         self.eval_df = self.eval_df.reset_index()
     
@@ -1214,20 +1214,23 @@ def plot_pca_save_wrap(df_X:pd.DataFrame,
 
 
 # %% Algorithm evaluation: learning curve, plotting
-class AlgoEvalPlot:
-    def __init__(self,train_eval:AlgoTrainEval):
-        self.train_eval = train_eval
+def std_lc_plot_path(dir_out_viz_std: str|os.PathLike,
+                      ds:str, metr:str, cstm_str:str
+                      ) -> pathlib.PosixPath:
 
+    path_lc_plot = Path(f"{dir_out_viz_std}/{ds}/learning_curve_{ds}_{metr}_{cstm_str}.png")
+    path_lc_plot.parent.mkdir(parents=True,exist_ok=True)
+    return path_lc_plot
+
+class AlgoEvalPlot:
+    def __init__(self,X,y):
         # The entire dataset of predictors/response    
-        self.X = pd.DataFrame()
-        self.y = np.empty(1)
-        self.all_X_all_y() # Populate X & y
+        self.X = X
+        self.y = y
 
         # Initialize Learning curve objects
         self.train_sizes_lc = np.empty(1)
         self.train_scores_lc = np.empty(1)
-
-
 
     def gen_learning_curve(self,model, cv = 5,n_jobs=-1,
                             train_sizes =np.linspace(0.1, 1.0, 10),
@@ -1246,10 +1249,9 @@ class AlgoEvalPlot:
         self.valid_mean_lc = np.mean(-valid_scores_lc, axis=1)
         self.valid_std_lc = np.std(-valid_scores_lc, axis=1)
 
-        
-    def plot_learning_curve(self,ylabel_scoring = 'Mean Squared Error (MSE)',
-                            title='Learning Curve',
-                            training_uncn = False) -> matplotlib.figure.Figure:
+    def plot_learning_curve(self,ylabel_scoring:str = "Mean Squared Error (MSE)",
+                            title:str='Learning Curve',
+                            training_uncn:bool = False) -> matplotlib.figure.Figure:
         # GENERATE LEARNING CURVE FIGURE 
         plt.figure(figsize=(10, 6))
         plt.plot(self.train_sizes_lc, self.train_mean_lc, 'o-', label='Training error')
@@ -1271,7 +1273,44 @@ class AlgoEvalPlot:
 
         fig = plt.gcf()
         return fig
+    
 
+    def extr_modl_algo_train(self, train_eval:AlgoTrainEval):
+        modls = list(train_eval.algs_dict.keys())
+
+        for k, v in train_eval.algs_dict.items():
+            v['algo']
+
+        
+
+    def plot_learning_curve_save_wrap(self, model,
+                            dir_out_viz_std:str|os.PathLike,
+                            ds:str, metr:str,
+                            cv:int = 5,n_jobs:int=-1,
+                            train_sizes = np.linspace(0.1, 1.0, 10),
+                            scoring:str = 'neg_mean_squared_error',
+                            ylabel_scoring:str = "Mean Squared Error (MSE)",
+                            title:str=f'Learning Curve: {metr} - {ds}',
+                            training_uncn:bool = False
+                            ) -> matplotlib.figure.Figure:
+        
+
+
+
+        # TODO define model string (e.g. 'rf', 'mlp', etc.)
+
+        # TODO generate custom plot title
+        cstm_title
+        
+
+        self.gen_learning_curve(self,model=model, cv=cv,n_jobs=n_jobs,
+                            train_sizes =train_sizes,scoring=scoring)
+        
+        fig_lc = self.plot_learning_curve(self,ylabel_scoring=ylabel_scoring,
+                            title=cstm_title,training_uncn=training_uncn)
+        path_plot_lc = std_lc_plot_path(dir_out_viz_std, ds, metr, cstm_str = model_str)
+    
+        fig_lc.savefig(path_plot_lc)
 
 # %% RANDOM-FOREST FEATURE IMPORTANCE
 def _extr_rf_algo(train_eval:AlgoTrainEval)->RandomForestRegressor:
@@ -1282,6 +1321,13 @@ def _extr_rf_algo(train_eval:AlgoTrainEval)->RandomForestRegressor:
               "Check to make sure the algo processing config file creates a random forest. Then make sure the ")
         rfr = None
     return rfr
+
+def std_feat_imp_plot_path(dir_out_viz_base:str|os.PathLike, ds:str,
+                            metr:str) -> pathlib.PosixPath:
+    # Generate a filepath of the feature_importance plot:
+    path_feat_imp_attrs = Path(f"{dir_out_viz_base}/{ds}/rf_feature_importance_{ds}_{metr}.png")
+    path_feat_imp_attrs.parent.mkdir(parents=True,exist_ok=True)
+    return path_feat_imp_attrs
 
 def plot_rf_importance(feat_imprt,attrs, title):
     df_feat_imprt = pd.DataFrame({'attribute': attrs,
@@ -1297,6 +1343,16 @@ def plot_rf_importance(feat_imprt,attrs, title):
     fig = plt.gcf()
     return fig
 
-def save_feat_imp_fig(fig_feat_imp, path_fig_imp):
-    fig_feat_imp.save(path_fig_imp)
-    print(f"Wrote feature importance figure to {path_fig_imp}")
+def save_feat_imp_fig_wrap(rfr:RandomForestRegressor,
+                           attrs:str,
+                           dir_out_viz_base:str|os.PathLike,
+                           ds:str,metr:str):
+    feat_imprt = rfr.feature_importances_
+    title_rf_imp = f"Random Forest feature importance of {metr}: {ds}"
+    fig_feat_imp = plot_rf_importance(feat_imprt, attrs=attrs, title= title_rf_imp)
+
+    path_fig_imp = std_feat_imp_plot_path(dir_out_viz_base,
+                                          ds,metr)
+
+    fig_feat_imp.savefig(path_fig_imp)
+    print(f"Wrote feature importance plot to {path_fig_imp}")
