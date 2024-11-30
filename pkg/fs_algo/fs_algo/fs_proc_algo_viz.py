@@ -162,10 +162,26 @@ if __name__ == "__main__":
                            dir_out_viz_base=dir_out_viz_base,
                            ds=ds,metr=metr)
 
+            # Create learning curves for each algorithm
+            algo_plot_lc = fsate.AlgoEvalPlotLC(df_X,y_all)
+            fsate.plot_learning_curve_save_wrap(algo_plot_lc,train_eval, 
+                            dir_out_viz_base=dir_out_viz_base,
+                            ds=ds,
+                            cv = 5,n_jobs=-1,
+                            train_sizes = np.linspace(0.1, 1.0, 10),
+                            scoring = 'neg_mean_squared_error',
+                            ylabel_scoring = "Mean Squared Error (MSE)",
+                            training_uncn = False
+                            )
 
             # %% Model testing results visualization
             # TODO extract y_pred for each model
-            for modl in train_eval.preds_dict.keys():
+            for modl in train_eval.algs_dict.keys():
+
+                #%% Evaluation: learning curves
+
+
+
                 print("TODO: Add Lauren's viz funcs")
                 # TODO write y_test and y_pred to file
                             

@@ -21,6 +21,7 @@ import yaml
 import warnings
 import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.ticker as ticker
 import pathlib
 import seaborn as sns
 from sklearn.decomposition import PCA
@@ -724,11 +725,14 @@ class AlgoTrainEval:
             if self.verbose:
                 print(f"      Performing Random Forest Training")
             
-            rf = RandomForestRegressor(n_estimators=self.algo_config['rf'].get('n_estimators'),
+            rf = RandomForestRegressor(n_estimators=self.algo_config['rf'].get('n_estimators',300),
+                                       max_depth = self.algo_config_grid['rf'].get('max_depth', None),
+                                       min_samples_split=self.algo_config_grid['rf'].get('min_samples_split',2),
+                                       min_samples_leaf=self.algo_config_grid['rf'].get('min_samples_leaf',1),
                                        oob_score=True,
                                        random_state=self.rs,
                                        )
-            pipe_rf = make_pipeline(rf)                           
+            pipe_rf = make_pipeline(rf)                       
             pipe_rf.fit(self.X_train, self.y_train)
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
@@ -772,17 +776,21 @@ class AlgoTrainEval:
             rf = RandomForestRegressor(oob_score=True, random_state=self.rs)
             # TODO move into main Param dict
             param_grid_rf = {
-                'randomforestregressor__n_estimators': self.algo_config_grid['rf'].get('n_estimators', [100, 200, 300])
+                'randomforestregressor__n_estimators': self.algo_config_grid['rf'].get('n_estimators', [100, 200, 300]),
+                'randomforestregressor__max_depth': self.algo_config_grid['rf'].get('max_depth', [None,10, 20, 30]), 
+                'randomforestregressor__min_samples_leaf': self.algo_config_grid['rf'].get('min_samples_leaf', [1, 2, 4]),
+                'randomforestregressor__min_samples_split': self.algo_config_grid['rf'].get('min_samples_split', [2, 5, 10])
             }
             pipe_rf = make_pipeline(rf)
             grid_rf = GridSearchCV(pipe_rf, param_grid_rf, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+            
             grid_rf.fit(self.X_train, self.y_train)
             self.algs_dict['rf'] = {'algo': grid_rf.best_estimator_.named_steps['randomforestregressor'],
                                     'pipeline': grid_rf.best_estimator_,
                                     'gridsearchcv': grid_rf,
                                     'type': 'random forest regressor',
                                     'metric': self.metric}
-
+        
         if 'mlp' in self.algo_config_grid:  # MULTI-LAYER PERCEPTRON
             if self.verbose:
                 print(f"      Performing Multilayer Perceptron Training with Grid Search")
@@ -1152,13 +1160,13 @@ def plot_pca_stdscaled_cumulative_var(pca_scaled:PCA,
     return(fig)
 
 
-def std_pca_plot_path(dir_out_viz_std: str|os.PathLike,
+def std_pca_plot_path(dir_out_viz_base: str|os.PathLike,
                       ds:str, cstm_str:str=None
                       ) -> pathlib.PosixPath:
     """Standardize the filepath for saving principal component analysis plots
 
-    :param dir_out_viz_std: The base visualization output directory
-    :type dir_out_viz_std: str | os.PathLike
+    :param dir_out_viz_base: The base visualization output directory
+    :type dir_out_viz_base: str | os.PathLike
     :param ds:The dataset name
     :type ds: str
     :param cstm_str: The option to add in a custom string such as the plot type, defaults to None, defaults to None
@@ -1167,9 +1175,9 @@ def std_pca_plot_path(dir_out_viz_std: str|os.PathLike,
     :rtype: pathlib.PosixPath
     """
     if cstm_str:
-        path_pca_plot = Path(f"{dir_out_viz_std}/{ds}/correlation_matrix_{ds}_{cstm_str}.png")
+        path_pca_plot = Path(f"{dir_out_viz_base}/{ds}/correlation_matrix_{ds}_{cstm_str}.png")
     else:
-        path_pca_plot = Path(f"{dir_out_viz_std}/{ds}/correlation_matrix_{ds}.png")
+        path_pca_plot = Path(f"{dir_out_viz_base}/{ds}/correlation_matrix_{ds}.png")
     path_pca_plot.parent.mkdir(parents=True,exist_ok=True)
 
     return path_pca_plot
@@ -1211,106 +1219,6 @@ def plot_pca_save_wrap(df_X:pd.DataFrame,
     print(f"Wrote the {ds} PCA cumulative variance explained plot to\n{path_pca_stdscaled_cum_fig}")
 
     return pca_scaled
-
-
-# %% Algorithm evaluation: learning curve, plotting
-def std_lc_plot_path(dir_out_viz_std: str|os.PathLike,
-                      ds:str, metr:str, cstm_str:str
-                      ) -> pathlib.PosixPath:
-
-    path_lc_plot = Path(f"{dir_out_viz_std}/{ds}/learning_curve_{ds}_{metr}_{cstm_str}.png")
-    path_lc_plot.parent.mkdir(parents=True,exist_ok=True)
-    return path_lc_plot
-
-class AlgoEvalPlot:
-    def __init__(self,X,y):
-        # The entire dataset of predictors/response    
-        self.X = X
-        self.y = y
-
-        # Initialize Learning curve objects
-        self.train_sizes_lc = np.empty(1)
-        self.train_scores_lc = np.empty(1)
-
-    def gen_learning_curve(self,model, cv = 5,n_jobs=-1,
-                            train_sizes =np.linspace(0.1, 1.0, 10),
-                            scoring = 'neg_mean_squared_error'
-                            ):
-        
-        # Generate learning curve data
-        self.train_sizes_lc, train_scores_lc, valid_scores_lc = learning_curve(
-            model, self.X, self.y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes, 
-            scoring=scoring
-        )
-
-        # Calculate mean and standard deviation
-        self.train_mean_lc = np.mean(-train_scores_lc, axis=1)  # Negate to get positive MSE
-        self.train_std_lc = np.std(-train_scores_lc, axis=1)
-        self.valid_mean_lc = np.mean(-valid_scores_lc, axis=1)
-        self.valid_std_lc = np.std(-valid_scores_lc, axis=1)
-
-    def plot_learning_curve(self,ylabel_scoring:str = "Mean Squared Error (MSE)",
-                            title:str='Learning Curve',
-                            training_uncn:bool = False) -> matplotlib.figure.Figure:
-        # GENERATE LEARNING CURVE FIGURE 
-        plt.figure(figsize=(10, 6))
-        plt.plot(self.train_sizes_lc, self.train_mean_lc, 'o-', label='Training error')
-        plt.plot(self.train_sizes_lc, self.valid_mean_lc, 'o-', label='Cross-validation error')
-        if training_uncn:
-            plt.fill_between(self.train_sizes_lc, self.train_mean_lc - self.train_std_lc, self.train_mean_lc + self.train_std_lc, alpha=0.1, color="r", label='Training uncertainty')
-        plt.fill_between(self.train_sizes_lc, self.valid_mean_lc - self.valid_std_lc, self.valid_mean_lc + self.valid_std_lc, alpha=0.1, color="g", label='Cross-validation uncertainty')
-        plt.xlabel('Training Size', fontsize = 18)
-        plt.ylabel(ylabel_scoring, fontsize = 18)
-        plt.title(title)
-        plt.legend(loc='best')
-        plt.grid(True)
-
-        # Adjust tick parameters for larger font size 
-        plt.tick_params(axis='both', which='major', labelsize=15)
-        plt.tick_params(axis='both', which='minor', labelsize=15)
-
-        plt.show()
-
-        fig = plt.gcf()
-        return fig
-    
-
-    def extr_modl_algo_train(self, train_eval:AlgoTrainEval):
-        modls = list(train_eval.algs_dict.keys())
-
-        for k, v in train_eval.algs_dict.items():
-            v['algo']
-
-        
-
-    def plot_learning_curve_save_wrap(self, model,
-                            dir_out_viz_std:str|os.PathLike,
-                            ds:str, metr:str,
-                            cv:int = 5,n_jobs:int=-1,
-                            train_sizes = np.linspace(0.1, 1.0, 10),
-                            scoring:str = 'neg_mean_squared_error',
-                            ylabel_scoring:str = "Mean Squared Error (MSE)",
-                            title:str=f'Learning Curve: {metr} - {ds}',
-                            training_uncn:bool = False
-                            ) -> matplotlib.figure.Figure:
-        
-
-
-
-        # TODO define model string (e.g. 'rf', 'mlp', etc.)
-
-        # TODO generate custom plot title
-        cstm_title
-        
-
-        self.gen_learning_curve(self,model=model, cv=cv,n_jobs=n_jobs,
-                            train_sizes =train_sizes,scoring=scoring)
-        
-        fig_lc = self.plot_learning_curve(self,ylabel_scoring=ylabel_scoring,
-                            title=cstm_title,training_uncn=training_uncn)
-        path_plot_lc = std_lc_plot_path(dir_out_viz_std, ds, metr, cstm_str = model_str)
-    
-        fig_lc.savefig(path_plot_lc)
 
 # %% RANDOM-FOREST FEATURE IMPORTANCE
 def _extr_rf_algo(train_eval:AlgoTrainEval)->RandomForestRegressor:
@@ -1356,3 +1264,108 @@ def save_feat_imp_fig_wrap(rfr:RandomForestRegressor,
 
     fig_feat_imp.savefig(path_fig_imp)
     print(f"Wrote feature importance plot to {path_fig_imp}")
+
+
+# %% Algorithm evaluation: learning curve, plotting
+def std_lc_plot_path(dir_out_viz_base: str|os.PathLike,
+                      ds:str, metr:str, algo_str:str
+                      ) -> pathlib.PosixPath:
+
+    path_lc_plot = Path(f"{dir_out_viz_base}/{ds}/learning_curve_{ds}_{metr}_{algo_str}.png")
+    path_lc_plot.parent.mkdir(parents=True,exist_ok=True)
+    return path_lc_plot
+
+class AlgoEvalPlotLC:
+    def __init__(self,X,y):
+        # The entire dataset of predictors/response    
+        self.X = X
+        self.y = y
+
+
+        # Initialize Learning curve objects
+        self.train_sizes_lc = np.empty(1)
+        self.train_scores_lc = np.empty(1)
+        self.valid_scores_lc = np.empty(1)
+
+
+    def gen_learning_curve(self,model, cv = 5,n_jobs=-1,
+                            train_sizes =np.linspace(0.1, 1.0, 10),
+                            scoring = 'neg_mean_squared_error'
+                            ):
+        
+        # Generate learning curve data
+        self.train_sizes_lc, self.train_scores_lc, self.valid_scores_lc = learning_curve(
+            model, self.X, self.y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes, 
+            scoring=scoring
+        )
+
+        # Calculate mean and standard deviation
+        self.train_mean_lc = np.mean(-self.train_scores_lc, axis=1)  # Negate to get positive MSE
+        self.train_std_lc = np.std(-self.train_scores_lc, axis=1)
+        self.valid_mean_lc = np.mean(-self.valid_scores_lc, axis=1)
+        self.valid_std_lc = np.std(-self.valid_scores_lc, axis=1)
+
+    def plot_learning_curve(self,ylabel_scoring:str = "Mean Squared Error (MSE)",
+                            title:str='Learning Curve',
+                            training_uncn:bool = False) -> matplotlib.figure.Figure:
+        # GENERATE LEARNING CURVE FIGURE 
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.train_sizes_lc, self.train_mean_lc, 'o-', label='Training error')
+        plt.plot(self.train_sizes_lc, self.valid_mean_lc, 'o-', label='Cross-validation error')
+        if training_uncn:
+            plt.fill_between(self.train_sizes_lc, self.train_mean_lc - self.train_std_lc, self.train_mean_lc + self.train_std_lc, alpha=0.1, color="r", label='Training uncertainty')
+        plt.fill_between(self.train_sizes_lc, self.valid_mean_lc - self.valid_std_lc, self.valid_mean_lc + self.valid_std_lc, alpha=0.1, color="g", label='Cross-validation uncertainty')
+        plt.xlabel('Training Size', fontsize = 18)
+        plt.ylabel(ylabel_scoring, fontsize = 18)
+        plt.title(title)
+        plt.legend(loc='best',fontsize=15)
+        plt.grid(True)
+
+        # Adjust tick parameters for larger font size 
+        plt.tick_params(axis='both', which='major', labelsize=15)
+        plt.tick_params(axis='both', which='minor', labelsize=15)
+
+        plt.show()
+
+        fig = plt.gcf()
+        return fig
+    
+    def extr_modl_algo_train(self, train_eval:AlgoTrainEval):
+        modls = list(train_eval.algs_dict.keys())
+
+        for k, v in train_eval.algs_dict.items():
+            v['algo']
+
+def plot_learning_curve_save_wrap(algo_plot:AlgoEvalPlotLC, train_eval:AlgoTrainEval, 
+                            dir_out_viz_base:str|os.PathLike,
+                            ds:str,
+                            cv:int = 5,n_jobs:int=-1,
+                            train_sizes = np.linspace(0.1, 1.0, 10),
+                            scoring:str = 'neg_mean_squared_error',
+                            ylabel_scoring:str = "Mean Squared Error (MSE)",
+                            training_uncn:bool = False
+                            ) -> matplotlib.figure.Figure:
+        
+    algs_dict = train_eval.algs_dict
+    eval_dict = train_eval.eval_dict
+
+    # Looping over e/ algo inside algs_dict from AlgoTrainEval.train_eval
+    for algo_str, val in algs_dict.items():
+        best_algo = val['pipeline']
+        metr = eval_dict[algo_str]['metric']
+        full_algo_str = eval_dict[algo_str]['type'].title()
+
+        # Generate custom plot title
+        cstm_title = f'{full_algo_str} Learning Curve: {metr} - {ds}'
+        algo_str = f'{algo_str}' # Custom filepath string (e.g. 'rf', 'mlp')
+        
+        # Generate learning curve data
+        algo_plot.gen_learning_curve(model=best_algo, cv=cv,n_jobs=n_jobs,
+                            train_sizes =train_sizes,scoring=scoring)
+        # Create learning curve figure
+        fig_lc = algo_plot.plot_learning_curve(ylabel_scoring=ylabel_scoring,
+                            title=cstm_title,training_uncn=training_uncn)
+        # Standardize filepath to learning curve
+        path_plot_lc = std_lc_plot_path(dir_out_viz_base, ds, metr, algo_str = algo_str)
+    
+        fig_lc.savefig(path_plot_lc)
