@@ -102,24 +102,7 @@ if __name__ == "__main__":
     # Each model type has different seeds or formulations
     dat_metr[metrics[0]][model_types[0]].keys()
 
-    # Extract the process-based model metrics
-    # Create dict of dfs for each benchmark model, with df containing eval metrics
-    dict_modl_names = dict()
-    for sel_modl_name in benchmark_names:
-        dict_modl_names[sel_modl_name] = pd.DataFrame()
-        for metric, vals in dat_metr.items():
-            dict_models = dict()
-            print(metric)
-            for model, vv in vals.items():
-                print(f'....{model}')
-                for modl_name, metr_vals in vv.items():
-                    if modl_name == sel_modl_name:
-                        full_modl_name = model +'_' + modl_name
-                        df_metr = pd.DataFrame(metr_vals.items(), columns = ['gageID',metric])
-                        if dict_modl_names[sel_modl_name].shape[0] == 0:
-                            dict_modl_names[sel_modl_name] = pd.concat([dict_modl_names[sel_modl_name], df_metr])
-                        else:
-                            dict_modl_names[sel_modl_name] = pd.merge(dict_modl_names[sel_modl_name], df_metr, on='gageID')
+
 
     # Extract LSTM ensemble model metrics
     lstm_model_types = [x for x in list(dat_metr[metrics[0]].keys()) if x!= 'benchmarks']
@@ -139,17 +122,41 @@ if __name__ == "__main__":
                             else:
                                 dict_modl_names_lstm[sel_modl_name] = pd.merge(dict_modl_names_lstm[sel_modl_name], df_metr, on='gageID')
 
+    ls_gage_ids = df_metr['gageID'].tolist()
+
+    # Extract the process-based model metrics
+    # Create dict of dfs for each benchmark model, with df containing eval metrics
+    dict_modl_names = dict()
+    for sel_modl_name in benchmark_names:
+        dict_modl_names[sel_modl_name] = pd.DataFrame()
+        for metric, vals in dat_metr.items():
+            dict_models = dict()
+            print(metric)
+            for model, vv in vals.items():
+                print(f'....{model}')
+                for modl_name, metr_vals in vv.items():
+                    if modl_name == sel_modl_name:
+                        full_modl_name = model +'_' + modl_name
+                        df_metr = pd.DataFrame(metr_vals.items(), columns = ['gageID',metric])
+                        # SUBSET TO JUST THOSE SAME LOCATIONS EVALUATED WITH LSTM
+                        df_metr = df_metr[df_metr['gageID'].isin(ls_gage_ids)] 
+                        if dict_modl_names[sel_modl_name].shape[0] == 0:
+                            dict_modl_names[sel_modl_name] = pd.concat([dict_modl_names[sel_modl_name], df_metr])
+                        else:
+                            dict_modl_names[sel_modl_name] = pd.merge(dict_modl_names[sel_modl_name], df_metr, on='gageID')
+
+
     
     dict_modl_names.update(dict_modl_names_lstm)
-ds_name_og = col_schema_df['dataset_name']
-# Operate over each dataset
-for ds, df in dict_modl_names.items():
-    print(f'Processing {ds}')
+    ds_name_og = col_schema_df['dataset_name']
+    # Operate over each dataset
+    for ds, df in dict_modl_names.items():
+        print(f'Processing {ds}')
 
-    # Create NNSE
-    df['NNSE'] = 1/(2-df['NSE'])
+        # Create NNSE
+        df['NNSE'] = 1/(2-df['NSE'])
 
-    # Format the dataset name
-    col_schema_df['dataset_name'] = [x.format(ds=ds) for x in ds_name_og]
-    # Generate the standardized netcdf file:
-    ds = pem.proc_col_schema(df, col_schema_df, dir_save)
+        # Format the dataset name
+        col_schema_df['dataset_name'] = [x.format(ds=ds) for x in ds_name_og]
+        # Generate the standardized netcdf file:
+        ds = pem.proc_col_schema(df, col_schema_df, dir_save)
