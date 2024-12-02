@@ -5,7 +5,7 @@ from pathlib import Path
 import fs_algo.fs_algo_train_eval as fsate
 import ast
 import numpy as np
-
+import geopandas as gpd
 """Workflow script to train algorithms on catchment attribute data for predicting
     formulation metrics and/or hydrologic signatures.
 
@@ -88,11 +88,16 @@ if __name__ == "__main__":
 
         # %% COMID retrieval and assignment to response variable's coordinate
         [featureSource,featureID] = fsate._find_feat_srce_id(dat_resp,attr_cfig.attr_config) # e.g. ['nwissite','USGS-{gage_id}']
-        comids_resp = fsate.fs_retr_nhdp_comids(featureSource,featureID,gage_ids=dat_resp['gage_id'].values)
-        dat_resp = dat_resp.assign_coords(comid = comids_resp)
-        # Remove the unknown comids:
+        gdf_comid = fsate.fs_retr_nhdp_comids_geom(featureSource=featureSource,
+                                                   featureID=featureID,
+                                                   gage_ids=dat_resp['gage_id'].values)
+        
+        # Create a DataFrame, assigning with the current dimensions first (before removing NA vals)
+        dat_resp = dat_resp.assign_coords(comid = gdf_comid['comid'].values)
+        # Remove the unknown comids now that they've been matched up to the original dims in dat_resp:
         dat_resp = dat_resp.dropna(dim='comid',how='any')
-        comids_resp = [x for x in comids_resp if x is not np.nan]
+        comids_resp = gdf_comid['comid'].dropna().tolist()
+        gdf_comid = gdf_comid.dropna(subset=['comid'])
         # TODO allow secondary option where featureSource and featureIDs already provided, not COMID 
 
         #%%  Read in predictor variable data (aka basin attributes) 
@@ -146,7 +151,14 @@ if __name__ == "__main__":
                                         metr=metr,test_size=test_size, rs = seed,
                                         verbose=verbose)
             train_eval.train_eval() # Train, test, eval wrapper
-            
+
+            # Get the comids corresponding to the testing data:
+            if train_eval.X_test.shape[0] + train_eval.X_train.shape[0] == df_pred_resp.shape[0]:
+                df_pred_resp_test = df_pred_resp.iloc[train_eval.X_test.index]
+                comids_test = df_pred_resp_test['comid'].values
+            else:
+                raise ValueError("Problem with expected dimensions. Consider how missing data may be handled with AlgoTrainEval.train_eval()")
+
             # Retrieve evaluation metrics dataframe
             rslt_eval[metr] = train_eval.eval_df
 
@@ -175,19 +187,33 @@ if __name__ == "__main__":
                             )
 
             # %% Model testing results visualization
+
+
+
             # TODO extract y_pred for each model
-            for modl in train_eval.algs_dict.keys():
+            for algo_str in train_eval.algs_dict.keys():
 
                 #%% Evaluation: learning curves
+                y_pred = train_eval.preds_dict[algo_str]['y_pred']
+                y_obs = train_eval.y_test.copy()
+                # Regression of testing holdout's prediction vs observation
+                fsate.plot_pred_vs_obs_wrap(y_pred, y_obs, dir_out_viz_base,
+                           ds, metr, algo_str=algo_str,split_type=f'testing{test_size}')
 
+                # PREPARE THE GDF TO ALIGN PREDICTION VALUES BY COMIDS/COORDS
+                test_gdf = gdf_comid[gdf_comid['comid'].isin(comids_test)].copy()
+                # Ensure test_gdf is ordered in the same order of comids as y_pred
+                test_gdf['id'] = pd.Categorical(test_gdf['comid'], categories=comids_test, ordered=True) 
+                test_gdf = test_gdf.sort_values('id').reset_index(drop=True)
+                test_gdf.loc[:,'performance'] = y_pred 
 
+                fsate.plot_map_perf_wrap(test_gdf,
+                                   dir_out_viz_base, ds,
+                                    metr,algo_str,
+                                    split_type='test',
+                                    colname_data='performance')
 
-                print("TODO: Add Lauren's viz funcs")
                 # TODO write y_test and y_pred to file
-                            
-
-
-
             del train_eval
         # Compile results and write to file
         rslt_eval_df = pd.concat(rslt_eval).reset_index(drop=True)
@@ -198,3 +224,4 @@ if __name__ == "__main__":
 
         dat_resp.close()
     print("FINISHED algorithm training, testing, & evaluation")
+

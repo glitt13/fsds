@@ -25,7 +25,11 @@ import matplotlib.ticker as ticker
 import pathlib
 import seaborn as sns
 from sklearn.decomposition import PCA
-
+from shapely.geometry import Point
+import geopandas as gpd
+import urllib
+import zipfile
+import forestci as fci
 
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
@@ -318,8 +322,9 @@ def _find_feat_srce_id(dat_resp: Optional[xr.core.dataset.Dataset] = None,
 
     return [featureSource, featureID]
 
-def fs_retr_nhdp_comids(featureSource:str,featureID:str,gage_ids: Iterable[str] ) ->list:    
-    """Retrieve response variable's comids, querying the shortest distance in the flowline
+def fs_retr_nhdp_comids_geom(featureSource:str,featureID:str,gage_ids: Iterable[str] 
+                             ) -> gpd.geodataframe.GeoDataFrame:    
+    """Retrieve response variable's comids & point geom, querying the shortest distance in the flowline
 
     :param featureSource: the datasource for featureID from the R function :mod:`nhdplusTools` :func:`get_nldi_features()`, e.g. 'nwissite'
     :type featureSource: str
@@ -328,29 +333,29 @@ def fs_retr_nhdp_comids(featureSource:str,featureID:str,gage_ids: Iterable[str] 
     :param gage_ids: The location identifiers compatible with the format specified in `featureID`
     :type gage_ids: Iterable[str]
     :raises warnings.warn: In case number of retrieved comids does not match total requested gage ids
-    :return: The COMIDs corresponding to the provided location identifiers, `gage_ids`
-    :rtype: list
+    :return: The COMIDs & point geometry corresponding to the provided location identifiers, `gage_ids`
+    :rtype: GeoDataFrame
+
+    Changelog:
+        2024-12-01 refactor: return GeoDataFrame with coordinates instead of a list of just comids, GL
     """
 
     nldi = nhd.NLDI()
     
-    # comids_resp = [nldi.navigate_byid(fsource=featureSource,fid= featureID.format(gage_id=gage_id),
-    #                             navigation='upstreamMain',
-    #                             source='flowlines',
-    #                             distance=1 # the shortest distance
-    #                             ).loc[0]['nhdplus_comid'] 
-    #                             for gage_id in gage_ids]
     comids_miss = []
     comids_resp = []
+    geom_pts = []
     for gage_id in gage_ids:
         try:
-            comid = nldi.navigate_byid(
+            upstr_flowline = nldi.navigate_byid(
                 fsource=featureSource,
                 fid=featureID.format(gage_id=gage_id),
                 navigation='upstreamMain',
                 source='flowlines',
                 distance=1
-            ).loc[0]['nhdplus_comid']
+            ).loc[0]
+            geom_pts.append(Point(upstr_flowline['geometry'].coords[0]))
+            comid = upstr_flowline['nhdplus_comid']
             comids_resp.append(comid)
         except Exception as e:
             print(f"Error processing gage_id {gage_id}: {e}")
@@ -358,17 +363,18 @@ def fs_retr_nhdp_comids(featureSource:str,featureID:str,gage_ids: Iterable[str] 
 
             # TODO Attempt a different approach for retrieving comid:
             comids_miss.append(comid)
-
+            geom_pts.append(np.nan)
             comids_resp.append(np.nan)  # Appending NA for failed gage_id, or handle differently as needed
-            
-
-            
 
     # if len(comids_resp) != len(gage_ids) or comids_resp.count(None) > 0: # May not be an important check
     #     raise warnings.warn("The total number of retrieved comids does not match \
     #                   total number of provided gage_ids",UserWarning)
 
-    return comids_resp
+    gdf_comid = gpd.GeoDataFrame(pd.DataFrame({ 'comid': comids_resp}),
+                                            geometry=geom_pts,crs=4326 
+                                )
+
+    return gdf_comid
 
 def build_cfig_path(path_known_config:str | os.PathLike, path_or_name_cfig:str | os.PathLike) -> os.PathLike | None:
     """Build the expected configuration file path within the RAFTS framework
@@ -533,6 +539,20 @@ def std_pred_path(dir_out: str | os.PathLike, algo: str, metric: str, dataset_id
     path_pred_rslt = Path(dir_preds_ds)/Path(basename_pred_alg_ds_metr)
     return path_pred_rslt
 
+def std_Xtrain_path(dir_out_alg_ds:str | os.PathLike, dataset_id: str) -> str:
+    """Standardize the algorithm save path
+    :param dir_out_alg_ds:  Directory where algorithm's output stored.
+    :type dir_out_alg_ds: str | os.PathLike
+    :param metric:  The metric or hydrologic signature identifier of interest
+    :type metric: str
+    :return: full save path for joblib object
+    :rtype: str
+    """
+    Path(dir_out_alg_ds).mkdir(exist_ok=True,parents=True)
+    basename_alg_ds = f'Xtrain__{dataset_id}'
+    path_Xtrain = Path(dir_out_alg_ds) / Path(basename_alg_ds + '.csv')
+    return path_Xtrain
+
 def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> list[str]:
     """Read the comids from a prediction file formatted as .csv
 
@@ -550,11 +570,6 @@ def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> 
     if '.csv' in Path(path_pred_locs).suffix:
         try:
             comids_pred = pd.read_csv(path_pred_locs)[comid_pred_col].values
-        except:
-            raise ValueError(f"Could not successfully read in {path_pred_locs} & select col {comid_pred_col}")
-    elif '.parquet' in Path(path_pred_locs).suffix:
-        try:
-            comids_pred = pd.read_parquet(path_pred_locs)[comid_pred_col].values
         except:
             raise ValueError(f"Could not successfully read in {path_pred_locs} & select col {comid_pred_col}")
     else:
@@ -644,6 +659,7 @@ class AlgoTrainEval:
         y = self.df_non_na[self.metric]
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X,y, test_size=self.test_size, random_state=self.rs)
 
+
     def all_X_all_y(self):
         # Combine the train/test splits into a single dataframe/array
         # This may be called after calling AlgoTrainEval.split_data()
@@ -714,6 +730,30 @@ class AlgoTrainEval:
             # e.g. {'activation':'relu'} becomes {'activation':['relu']}
             self.algo_config_grid  = self.convert_to_list(self.algo_config_grid)
 
+    def calculate_rf_uncertainty(self, forest, X_train, X_test):
+        """
+        Calculate uncertainty using forestci for a Random Forest model.
+
+        Parameters:
+            forest (RandomForestRegressor): Trained Random Forest model.
+            X_train (ndarray): Training data.
+            X_test (ndarray): Test data.
+
+        Returns:
+            ndarray: Confidence intervals for each prediction.
+        """
+        ci = fci.random_forest_error(
+            forest=forest,
+            X_train_shape=X_train.shape,
+            X_test=X_test,
+            inbag=None, 
+            calibrate=True, 
+            memory_constrained=False, 
+            memory_limit=None, 
+            y_output=0  # Change this if multi-output
+        )
+        return ci
+
     def train_algos(self):
         """Train algorithms based on what has been defined in the algo config file Algorithm options include the following:
         
@@ -734,10 +774,32 @@ class AlgoTrainEval:
                                        )
             pipe_rf = make_pipeline(rf)                       
             pipe_rf.fit(self.X_train, self.y_train)
+            
+            # --- Make predictions using the RandomForest model ---
+            y_pred_rf = rf.predict(self.X_test)
+
+            # # --- Inserting forestci for uncertainty calculation ---
+            # ci = fci.random_forest_error(
+            #     forest=rf,
+            #     X_train_shape=self.X_train.shape,
+            #     X_test=self.X_test,  # Assuming X contains test samples
+            #     inbag=None, 
+            #     calibrate=True, 
+            #     memory_constrained=False, 
+            #     memory_limit=None, 
+            #     y_output=0  # Change this if multi-output
+            # )
+            # # ci now contains the confidence intervals for each prediction
+            
+            # --- Calculate confidence intervals ---
+            ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
+
+            # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric}
+                                    'metric': self.metric,
+                                    'ci': ci}
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
             
@@ -869,6 +931,7 @@ class AlgoTrainEval:
             path_algo = std_algo_path(self.dir_out_alg_ds, algo, self.metric, self.dataset_id)
             # basename_alg_ds_metr = f'algo_{algo}_{self.metric}__{self.dataset_id}'
             # path_algo = Path(self.dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
+            
             # write trained algorithm
             joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
             self.algs_dict[algo]['file_pipe'] = str(path_algo.name)
@@ -1120,9 +1183,9 @@ def plot_pca_stdscaled_tfrm(pca_scaled:PCA,
     plt.title(title)
     plt.xticks(x_axis)
     plt.grid(True)
-    plt.show()
+
     fig = plt.gcf()
-    return(fig)
+    return fig
 
 def plot_pca_stdscaled_cumulative_var(pca_scaled:PCA, 
                                       title='Cumulative Proportion of Variance Explained vs Principal Components',
@@ -1155,9 +1218,9 @@ def plot_pca_stdscaled_cumulative_var(pca_scaled:PCA,
     plt.title(title)
     plt.xticks(x_axis)
     plt.grid(True)
-    plt.show()
+
     fig = plt.gcf()
-    return(fig)
+    return fig 
 
 
 def std_pca_plot_path(dir_out_viz_base: str|os.PathLike,
@@ -1209,6 +1272,8 @@ def plot_pca_save_wrap(df_X:pd.DataFrame,
     path_pca_stdscaled_fig = std_pca_plot_path(dir_out_viz_base,ds,cstm_str=cstm_str)
     fig_pca_stdscale.savefig(path_pca_stdscaled_fig)
     print(f"Wrote the {ds} PCA explained variance ratio plot to\n{path_pca_stdscaled_fig}")
+    plt.clf()
+    plt.close()
     # CREATE THE CUMULATIVE VARIANCE PLOT
     cstm_str_cum = 'cumulative_var'
     if std_scale:
@@ -1217,8 +1282,9 @@ def plot_pca_save_wrap(df_X:pd.DataFrame,
     fig_pca_cumulative = plot_pca_stdscaled_cumulative_var(pca_scaled)
     fig_pca_cumulative.savefig(path_pca_stdscaled_cum_fig)
     print(f"Wrote the {ds} PCA cumulative variance explained plot to\n{path_pca_stdscaled_cum_fig}")
-
-    return pca_scaled
+    plt.clf()
+    plt.close()
+    return None
 
 # %% RANDOM-FOREST FEATURE IMPORTANCE
 def _extr_rf_algo(train_eval:AlgoTrainEval)->RandomForestRegressor:
@@ -1246,7 +1312,6 @@ def plot_rf_importance(feat_imprt,attrs, title):
     plt.xlabel('Importance')
     plt.ylabel('Attribute')
     plt.title(title)
-    plt.show()
 
     fig = plt.gcf()
     return fig
@@ -1264,6 +1329,8 @@ def save_feat_imp_fig_wrap(rfr:RandomForestRegressor,
 
     fig_feat_imp.savefig(path_fig_imp)
     print(f"Wrote feature importance plot to {path_fig_imp}")
+    plt.clf()
+    plt.close()
 
 
 # %% Algorithm evaluation: learning curve, plotting
@@ -1325,8 +1392,6 @@ class AlgoEvalPlotLC:
         plt.tick_params(axis='both', which='major', labelsize=15)
         plt.tick_params(axis='both', which='minor', labelsize=15)
 
-        plt.show()
-
         fig = plt.gcf()
         return fig
     
@@ -1369,3 +1434,126 @@ def plot_learning_curve_save_wrap(algo_plot:AlgoEvalPlotLC, train_eval:AlgoTrain
         path_plot_lc = std_lc_plot_path(dir_out_viz_base, ds, metr, algo_str = algo_str)
     
         fig_lc.savefig(path_plot_lc)
+
+        plt.clf()
+        plt.close()
+
+# %% Regression of Prediction vs Observation, adapted from plot in bolotinl's fs_perf_viz.py
+def std_regr_pred_obs_path(dir_out_viz_base:str|os.PathLike, ds:str,
+                            metr:str,algo_str:str,
+                            split_type:str='') -> pathlib.PosixPath:
+    
+    # Generate a filepath of the feature_importance plot:
+    path_regr_pred_plot = Path(f"{dir_out_viz_base}/{ds}/regr_pred_obs_{ds}_{metr}_{algo_str}_{split_type}.png")
+    path_regr_pred_plot.parent.mkdir(parents=True,exist_ok=True)
+    return path_regr_pred_plot
+
+def plot_pred_vs_obs_regr(y_pred, y_obs, ds:str, metr:str):
+    # Adapted from plot in bolotinl's fs_perf_viz.py
+
+    # Plot the observed vs. predicted module performance
+    plt.scatter(x=y_obs,y=y_pred, c='teal')
+    plt.axline((0, 0), (1, 1), color='black', linestyle='--')
+    plt.ylabel('Predicted {}'.format(metr))
+    plt.xlabel('Actual {}'.format(metr))
+    plt.title('Observed vs. Predicted Performance: {}'.format(ds))
+    fig = plt.gcf()
+    return fig
+
+def plot_pred_vs_obs_wrap(y_pred, y_obs, dir_out_viz_base:str|os.PathLike,
+                           ds:str, metr:str, algo_str:str, split_type:str):
+    # Generate figure
+    fig_regr = plot_pred_vs_obs_regr(y_pred, y_obs, ds, metr)
+    # Generate filepath for saving figure
+    path_regr_plot = std_regr_pred_obs_path(dir_out_viz_base, ds,
+                            metr,algo_str,split_type)
+    # Save the plot as a .png file
+    fig_regr.savefig(path_regr_plot, dpi=300, bbox_inches='tight')
+    plt.clf()
+    plt.close()
+
+#%% Performance map visualization, adapted from plot in bolotinl's fs_perf_viz.py
+def std_map_perf_path(dir_out_viz_base:str|os.PathLike, ds:str,
+                      metr:str,algo_str:str,
+                      split_type:str='') -> pathlib.PosixPath:
+    
+    # Generate a filepath of the feature_importance plot:
+    path_perf_map_plot = Path(f"{dir_out_viz_base}/{ds}/performance_map_{ds}_{metr}_{algo_str}_{split_type}.png")
+    path_perf_map_plot.parent.mkdir(parents=True,exist_ok=True)
+    return path_perf_map_plot
+
+def gen_conus_basemap(dir_out_basemap, # This should be the data_visualizations directory
+                    url = 'https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip',
+                    fn_basemap='cb_2018_us_state_500k.shp'):
+
+    url = 'https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip'
+    path_zip_basemap = f'{dir_out_basemap}/cb_2018_us_state_500k.zip'
+    path_shp_basemap = f'{dir_out_basemap}/{fn_basemap}'
+
+    if not Path(path_zip_basemap).exists():
+        print('Downloading shapefile...')
+        urllib.request.urlretrieve(url, path_zip_basemap)
+    if not Path(path_shp_basemap).exists():
+        with zipfile.ZipFile(path_zip_basemap, 'r') as zip_ref:
+            zip_ref.extractall(f'{path_shp_basemap}')
+
+    states = gpd.read_file(path_shp_basemap)
+    states = states.to_crs("EPSG:4326")
+    return states
+
+
+# def lat_lon_training_data(geom:gpd.geoseries.GeoSeries|gpd.geodataframe.GeoDataFrame):
+#     # TODO Adapt this to fs_perf_viz.py
+#     lat = data['Y']
+#     lon = data['X']
+#     # Plot performance on map
+#     geometry = [Point(xy) for xy in zip(lon,lat)]
+#     geo_df = gpd.GeoDataFrame(geometry = geometry)
+#     geo_df['performance'] = data['prediction'].values
+#     geo_df.crs = ("EPSG:4326")
+    
+def plot_map_perf(geo_df, states,title,metr,colname_data='performance'):
+    fig, ax = plt.subplots(1, 1, figsize=(20, 24))
+    base = states.boundary.plot(ax=ax,color="#555555", linewidth=1)
+    # Points
+    geo_df.plot(column=colname_data, ax=ax, markersize=150, cmap='viridis', legend=False, zorder=2) # delete zorder to plot points behind states boundaries
+    # States
+    states.boundary.plot(ax=ax, color="#555555", linewidth=1, zorder=1)  # Plot states boundary again with lower zorder
+
+    cbar = plt.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=-0.41,vmax = 1), cmap='viridis')
+    ax.tick_params(axis='x', labelsize= 24)
+    ax.tick_params(axis='y', labelsize= 24)
+    plt.xlabel('Latitude',fontsize = 26)
+    plt.ylabel('Longitude',fontsize = 26)
+    cbar_ax = plt.colorbar(cbar, ax=ax,fraction=0.02, pad=0.04)
+    cbar_ax.set_label(label=metr,size=24)
+    cbar_ax.ax.tick_params(labelsize=24)  # Set colorbar tick labels size
+    plt.title(title, fontsize = 28)
+    ax.set_xlim(-126, -66)
+    ax.set_ylim(24, 50)
+    fig = plt.gcf()
+    return fig
+
+def plot_map_perf_wrap(test_gdf,dir_out_viz_base, ds,
+                      metr,algo_str,
+                      split_type='test',
+                      colname_data='performance'):
+
+    path_perf_map_plot = std_map_perf_path(dir_out_viz_base,ds,metr,algo_str,split_type)
+    dir_out_basemap = path_perf_map_plot.parent.parent
+    states = gen_conus_basemap(dir_out_basemap = dir_out_basemap)
+
+    # Ensure the gdf matches the 4326 epsg used for states:
+    test_gdf = test_gdf.to_crs(4326)
+
+    # Generate the map
+    plot_title = f"Predicted Performance: {metr} - {ds}"
+    plot_perf_map = plot_map_perf(geo_df=test_gdf, states=states,title=plot_title,
+                                  metr=metr,colname_data=colname_data)
+
+    # Save the plot as a .png file
+    plot_perf_map.savefig(path_perf_map_plot, dpi=300, bbox_inches='tight')
+    print(f"Wrote performance plot to \n{path_perf_map_plot}")
+    plt.clf()
+    plt.close()
+
