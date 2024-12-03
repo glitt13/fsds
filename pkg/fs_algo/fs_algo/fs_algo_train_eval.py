@@ -1654,6 +1654,13 @@ def plot_best_perf_map(geo_df,states, title, comparison_col = 'dataset'):
     ax.set_xlim(-126, -66)
     ax.set_ylim(24, 50)
 
+    # Customize the legend, specifically for the geo_df plot
+    legend = ax.get_legend()
+    if legend:
+        legend.set_title("Formulations", prop={'size': 20})
+        for text in legend.get_texts():
+            text.set_fontsize(20)
+
     fig = plt.gcf()
     return fig
 

@@ -113,10 +113,14 @@ if __name__ == "__main__":
                 continue
     
     df_pred_obs_all = pd.concat(dict_pred_obs_ds)
+
+    #%% CUSTOM MUNGING
     
+
+    df_pred_obs_all['name'] = df_prod_obs_all['dataset'].str.replace('kratzert19_','')
     # TODO which metrics best when using idxmax()?
     # TODO which metrics are allowed to be predicted based on evaluation criteria?
-
+    #%% Generate comparison plot
     for metr in metrics_compare:
         df_pred_obs_metr = df_pred_obs_all[df_pred_obs_all['metric']==metr]
         best_df = df_pred_obs_metr.loc[df_pred_obs_metr.groupby(['comid'])['performance'].idxmax()]
