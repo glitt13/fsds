@@ -517,7 +517,8 @@ def std_algo_path(dir_out_alg_ds:str | os.PathLike, algo: str, metric: str, data
     path_algo = Path(dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
     return path_algo
 
-def std_pred_path(dir_out: str | os.PathLike, algo: str, metric: str, dataset_id: str) -> str:
+def std_pred_path(dir_out: str | os.PathLike, algo: str, metric: str, dataset_id: str
+                  ) -> pathlib.PosixPath:
     """Standardize the prediction results save path
 
     :param dir_out: The base directory for saving output
@@ -539,7 +540,8 @@ def std_pred_path(dir_out: str | os.PathLike, algo: str, metric: str, dataset_id
     path_pred_rslt = Path(dir_preds_ds)/Path(basename_pred_alg_ds_metr)
     return path_pred_rslt
 
-def std_Xtrain_path(dir_out_alg_ds:str | os.PathLike, dataset_id: str) -> str:
+def std_Xtrain_path(dir_out_alg_ds:str | os.PathLike, dataset_id: str
+                    ) -> pathlib.PosixPath:
     """Standardize the algorithm save path
     :param dir_out_alg_ds:  Directory where algorithm's output stored.
     :type dir_out_alg_ds: str | os.PathLike
@@ -552,6 +554,14 @@ def std_Xtrain_path(dir_out_alg_ds:str | os.PathLike, dataset_id: str) -> str:
     basename_alg_ds = f'Xtrain__{dataset_id}'
     path_Xtrain = Path(dir_out_alg_ds) / Path(basename_alg_ds + '.csv')
     return path_Xtrain
+
+
+def std_test_pred_obs_path(dir_out_anlys_base:str|os.PathLike,ds:str, metr:str
+                      )->pathlib.PosixPath:
+    # Create the path for saving the predicted and observed metric/coordinates from testing
+    path_pred_obs = Path(f"{dir_out_anlys_base}/{ds}/pred_obs_{ds}_{metr}.csv")
+    path_pred_obs.parent.mkdir(exist_ok=True,parents=True)
+    return path_pred_obs
 
 def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> list[str]:
     """Read the comids from a prediction file formatted as .csv
@@ -577,10 +587,62 @@ def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> 
     comids_pred = [str(x) for x in comids_pred]
     return comids_pred
 
+
+def find_common_comid(dict_gdf_comids, column='comid'):
+    
+    common_comid = None
+    for df in dict_gdf_comids.values():
+        if common_comid is None:
+            common_comid = set(df[column])
+        else:
+            common_comid &= set(df[column])
+
+    common_comid = list(common_comid)
+    return common_comid
+
+def split_train_test_comid_wrap(dir_std_base:str|os.PathLike, 
+                datasets:list, attr_config:dict,
+                comid_col='comid', test_size:float=0.3,
+                random_state:int=42) -> dict:
+    """
+    Create a train/test split based on shared comids across multiple datasets
+    Helpful when datasets have different sizes
+
+    """
+
+    dict_gdf_comids = dict()
+    for ds in datasets:
+        dat_resp = _open_response_data_fs(dir_std_base,ds)
+
+        [featureSource,featureID] = _find_feat_srce_id(dat_resp,attr_config) 
+
+        gdf_comid = fs_retr_nhdp_comids_geom(featureSource=featureSource,
+                                            featureID=featureID,
+                                            gage_ids=dat_resp['gage_id'].values)
+        gdf_comid['dataset'] = ds        
+        dict_gdf_comids[ds] = gdf_comid
+
+    if len(datasets) > 1:
+        common_comid = find_common_comid(dict_gdf_comids, column = comid_col)
+    else:
+        common_comid = dict_gdf_comids[ds]['comid'].tolist()
+    
+    # Create the train/test split
+    df_common_comids = pd.DataFrame({'comid':common_comid}).dropna()
+    train_ids, test_ids = train_test_split(df_common_comids, test_size=test_size, random_state=random_state)
+
+    # Compile results into a standard structure
+    split_dict = {'dict_gdf_comids' : dict_gdf_comids,
+                'sub_test_ids': test_ids[comid_col],
+                'sub_train_ids': train_ids[comid_col]}
+    return split_dict
+
+
 class AlgoTrainEval:
     def __init__(self, df: pd.DataFrame, attrs: Iterable[str], algo_config: dict,
                  dir_out_alg_ds: str | os.PathLike, dataset_id: str,
                  metr: str, test_size: float = 0.3,rs: int = 32,
+                 test_ids = None,test_id_col:str = 'comid',
                  verbose: bool = False):
         """The algorithm training and evaluation class.
 
@@ -604,6 +666,10 @@ class AlgoTrainEval:
         :type test_size: float, optional
         :param rs: The random seed, defaults to 32.
         :type rs: int, optional
+        :param test_ids: The explicit comids of interest for testing. Defaults to None. If None, use the test_size instead for the train/test split 
+        :type test_ids: Iterable or None
+        :param test_id_col: The column name for comid, defaults to 'comid'
+        :type test_id_col: str
         :param verbose: Should print, defaults to False.
         :type verbose: bool, optional
         """
@@ -614,10 +680,11 @@ class AlgoTrainEval:
         self.dir_out_alg_ds = dir_out_alg_ds
         self.metric = metr
         self.test_size = test_size
+        self.test_ids = test_ids
+        self.test_id_col = test_id_col
         self.rs = rs
         self.dataset_id = dataset_id
         self.verbose = verbose
-
 
         # train/test split
         self.X_train = pd.DataFrame()
@@ -640,11 +707,10 @@ class AlgoTrainEval:
     def split_data(self):
         """Split dataframe into training and testing predictors (X) and response (y) variables using :func:`sklearn.model_selection.train_test_split`
 
-        """
-        
-        if self.verbose:
-            print(f"      Performing train/test split as {round(1-self.test_size,2)}/{self.test_size}")
+        Changelog:
+        2024-12-02 Add in the explicitly provided comid option
 
+        """
         # Check for NA values first
         self.df_non_na = self.df[self.attrs + [self.metric]].dropna()
         if self.df_non_na.shape[0] < self.df.shape[0]:
@@ -653,12 +719,23 @@ class AlgoTrainEval:
                 \n   NA VALUES FOUND IN INPUT DATASET!! \
                 \n   DROPPING {self.df.shape[0] - self.df_non_na.shape[0]} ROWS OF DATA. \
                 \n   !!!!!!!!!!!!!!!!!!!",UserWarning)
-            
-
-        X = self.df_non_na[self.attrs]
-        y = self.df_non_na[self.metric]
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X,y, test_size=self.test_size, random_state=self.rs)
-
+                
+        if self.test_ids is not None:
+            # Use the manually provided comids for testing, then the remaining data for training
+            print("Using the custom test comids, and letting all remaining comids be used for training.")
+            df_sub_test = self.df[self.df[self.test_id_col].isin(self.test_ids)].dropna(subset=self.attrs + [self.metric])
+            df_sub_train = self.df[~self.df[self.test_id_col].isin(self.test_ids)].dropna(subset=self.attrs + [self.metric])
+            # Assign
+            self.y_test = df_sub_test[self.metric]
+            self.y_train = df_sub_train[self.metric]
+            self.X_test = df_sub_test[self.attrs]
+            self.X_train = df_sub_train[self.attrs]
+        else: # The standard train_test_split (Caution when processing multiple datasets, if total dims differ, then basin splits may differ)
+            if self.verbose:
+                print(f"      Performing train/test split as {round(1-self.test_size,2)}/{self.test_size}")
+            X = self.df_non_na[self.attrs]
+            y = self.df_non_na[self.metric]
+            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X,y, test_size=self.test_size, random_state=self.rs)
 
     def all_X_all_y(self):
         # Combine the train/test splits into a single dataframe/array
@@ -1450,7 +1527,7 @@ def std_regr_pred_obs_path(dir_out_viz_base:str|os.PathLike, ds:str,
 
 def plot_pred_vs_obs_regr(y_pred, y_obs, ds:str, metr:str):
     # Adapted from plot in bolotinl's fs_perf_viz.py
-
+    
     # Plot the observed vs. predicted module performance
     plt.scatter(x=y_obs,y=y_pred, c='teal')
     plt.axline((0, 0), (1, 1), color='black', linestyle='--')
@@ -1520,7 +1597,8 @@ def plot_map_perf(geo_df, states,title,metr,colname_data='performance'):
     # States
     states.boundary.plot(ax=ax, color="#555555", linewidth=1, zorder=1)  # Plot states boundary again with lower zorder
 
-    cbar = plt.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=-0.41,vmax = 1), cmap='viridis')
+    ## cbar = plt.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=0,vmax = 1), cmap='viridis')
+    cbar = plt.cm.ScalarMappable(cmap='viridis')
     ax.tick_params(axis='x', labelsize= 24)
     ax.tick_params(axis='y', labelsize= 24)
     plt.xlabel('Latitude',fontsize = 26)
@@ -1553,7 +1631,51 @@ def plot_map_perf_wrap(test_gdf,dir_out_viz_base, ds,
 
     # Save the plot as a .png file
     plot_perf_map.savefig(path_perf_map_plot, dpi=300, bbox_inches='tight')
-    print(f"Wrote performance plot to \n{path_perf_map_plot}")
+    print(f"Wrote performance map to \n{path_perf_map_plot}")
     plt.clf()
     plt.close()
 
+# %% Best performance intercomparison
+
+def plot_best_perf_map(geo_df,states, title, comparison_col = 'dataset'):
+
+    fig, ax = plt.subplots(1, 1, figsize=(20, 24))
+    base = states.boundary.plot(ax=ax, color="#555555", linewidth=1)
+
+
+    # Plot points based on the 'best_algo' column
+    geo_df.plot(column=comparison_col, ax=ax, markersize=150, cmap='viridis', legend=True,zorder=2)
+
+    # Plot states boundary again with lower zorder
+    states.boundary.plot(ax=ax, color="#555555", linewidth=1, zorder=1)
+
+    # Set title and axis limits
+    plt.title(title, fontsize=28)
+    ax.set_xlim(-126, -66)
+    ax.set_ylim(24, 50)
+
+    fig = plt.gcf()
+    return fig
+
+def std_map_best_path(dir_out_viz_base,metr,ds):
+    # Generate a filepath of the feature_importance plot:
+    path_best_map_plot = Path(f"{dir_out_viz_base}/{ds}/performance_map_best_formulation_{metr}.png")
+    path_best_map_plot.parent.mkdir(parents=True,exist_ok=True)
+    return path_best_map_plot
+
+
+def plot_best_algo_wrap(geo_df, dir_out_viz_base,subdir_anlys, metr,comparison_col = 'dataset'):
+    """Generate the map of the best performance across each formulation
+
+    note:: saves the plot inside the directory {ds}
+    """
+    path_best_map_plot = std_map_best_path(dir_out_viz_base,metr,subdir_anlys)
+    states = gen_conus_basemap(dir_out_basemap = dir_out_viz_base)
+    title = f"Best predicted performance: {metr}"
+
+    plot_best_perf = plot_best_perf_map(geo_df, states,title, comparison_col)
+    plot_best_perf.savefig(path_best_map_plot, dpi=300, bbox_inches='tight')
+    print(f"Wrote best performance map to \n{path_best_map_plot}")
+
+    plt.clf()
+    plt.close()
