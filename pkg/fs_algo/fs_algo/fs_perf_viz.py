@@ -119,8 +119,8 @@ if __name__ == "__main__":
                 # If you want to export the merged data for any reason: 
                 # data.to_csv(f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_data.csv')
 
-                # Does the user want a scatter plot comparing the observed module performance and the predicted module performance by RaFTS?
-                if 'perf_map' in true_keys:
+                # Does the user want a map of the predicted module performance by RaFTS?
+                if 'pred_map' in true_keys:
                     url = 'https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip'
                     zip_filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.zip'
                     filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.shp'
@@ -163,12 +163,12 @@ if __name__ == "__main__":
                     ax.set_ylim(24, 50)
 
                     # Save the plot as a .png file
-                    output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_performance_map.png'
+                    output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_prediction_map.png'
                     plt.savefig(output_path, dpi=300, bbox_inches='tight')
                     plt.clf()
                     plt.close()
                     
-                    
+                # Does the user want a scatter plot comparing the observed module performance and the predicted module performance by RaFTS?
                 if 'obs_vs_sim_scatter' in true_keys:
                     # Scatter plot of observed vs. predicted module performance
                     # Remove 'USGS-' from ids so it can be merged with the actual performance data
