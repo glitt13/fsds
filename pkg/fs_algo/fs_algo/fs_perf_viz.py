@@ -102,6 +102,9 @@ if __name__ == "__main__":
     # Location for accessing existing outputs and saving plots
     dir_out = fsate.fs_save_algo_dir_struct(dir_base).get('dir_out')
 
+    # Enforce style
+    plt.style.use('/Users/laurenbolotin/Lauren/FSDS/formulation-selector/pkg/fs_algo/RaFTS_theme.mplstyle')
+
     # Loop through all datasets
     for ds in datasets:
         path_meta_pred = f'{path_meta_pred}'.format(ds = ds, dir_std_base = dir_std_base, ds_type = ds_type, write_type = write_type)
@@ -120,7 +123,7 @@ if __name__ == "__main__":
                 # data.to_csv(f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_data.csv')
 
                 # Does the user want a scatter plot comparing the observed module performance and the predicted module performance by RaFTS?
-                if 'perf_map' in true_keys:
+                if 'pred_map' in true_keys:
                     url = 'https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip'
                     zip_filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.zip'
                     filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.shp'
@@ -144,12 +147,13 @@ if __name__ == "__main__":
                     geo_df.crs = ("EPSG:4326")
 
                     fig, ax = plt.subplots(1, 1, figsize=(20, 24))
-                    base = states.boundary.plot(ax=ax,color="#555555", linewidth=1)
-                    # Points
-                    geo_df.plot(column="performance", ax=ax, markersize=150, cmap='viridis', legend=False, zorder=2) # delete zorder to plot points behind states boundaries
-                    # States
-                    states.boundary.plot(ax=ax, color="#555555", linewidth=1, zorder=1)  # Plot states boundary again with lower zorder
 
+                    # Points
+                    geo_df.plot(column="performance", ax=ax, markersize=150, cmap='viridis', legend=False, zorder=2, edgecolor = 'black') # delete zorder to plot points behind states boundaries
+                    # States
+                    states.plot(ax=ax, color='white', edgecolor='black', linewidth=1, zorder=1)
+
+                    # TODO: need to customize the colorbar min and max based on the metric
                     cbar = plt.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=-0.41,vmax = 1), cmap='viridis')
                     ax.tick_params(axis='x', labelsize= 24)
                     ax.tick_params(axis='y', labelsize= 24)
@@ -163,7 +167,7 @@ if __name__ == "__main__":
                     ax.set_ylim(24, 50)
 
                     # Save the plot as a .png file
-                    output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_performance_map.png'
+                    output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_prediction_map.png'
                     plt.savefig(output_path, dpi=300, bbox_inches='tight')
                     plt.clf()
                     plt.close()
@@ -196,10 +200,10 @@ if __name__ == "__main__":
                     data = pd.merge(data, obs, how = 'inner', on = 'identifier')
 
                     # Plot the observed vs. predicted module performance
-                    plt.scatter(data['prediction'], data[metric], c='teal')
+                    plt.scatter(data[metric], data['prediction'])
                     plt.axline((0, 0), (1, 1), color='black', linestyle='--')
-                    plt.xlabel('Predicted {}'.format(metric))
-                    plt.ylabel('Actual {}'.format(metric))
+                    plt.xlabel('Actual {}'.format(metric))
+                    plt.ylabel('Predicted {}'.format(metric))
                     plt.title('Observed vs. Predicted Performance: {}'.format(ds))
 
                     # Save the plot as a .png file
