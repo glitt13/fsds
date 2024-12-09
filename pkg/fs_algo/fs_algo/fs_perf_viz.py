@@ -25,6 +25,7 @@ import fs_algo.fs_algo_train_eval as fsate
 import xarray as xr
 import urllib.request
 import zipfile
+import pkg_resources
 
 
 if __name__ == "__main__":
@@ -103,7 +104,8 @@ if __name__ == "__main__":
     dir_out = fsate.fs_save_algo_dir_struct(dir_base).get('dir_out')
 
     # Enforce style
-    plt.style.use('/Users/laurenbolotin/Lauren/FSDS/formulation-selector/pkg/fs_algo/RaFTS_theme.mplstyle')
+    style_path = pkg_resources.resource_filename('fs_algo', 'RaFTS_theme.mplstyle')
+    plt.style.use(style_path)
 
     # Loop through all datasets
     for ds in datasets:
