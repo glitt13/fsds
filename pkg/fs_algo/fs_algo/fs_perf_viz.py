@@ -102,6 +102,7 @@ if __name__ == "__main__":
 
     # Location for accessing existing outputs and saving plots
     dir_out = fsate.fs_save_algo_dir_struct(dir_base).get('dir_out')
+    dir_out_viz_base = Path(dir_out/Path("data_visualizations"))
 
     # Enforce style
     style_path = pkg_resources.resource_filename('fs_algo', 'RaFTS_theme.mplstyle')
@@ -141,7 +142,9 @@ if __name__ == "__main__":
                                         metr=metric, colname_data='performance')
 
                     # Save the plot as a .png file
-                    output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_prediction_map.png'
+                    output_path = fsate.std_map_pred_path(dir_out_viz_base=dir_out_viz_base,
+                                                          ds=ds, metr=metric, algo_str=algo,
+                                                          split_type='prediction')
                     plt.savefig(output_path, dpi=300, bbox_inches='tight')
                     plt.clf()
                     plt.close()
@@ -178,7 +181,9 @@ if __name__ == "__main__":
                                                 ds = ds, metr=metric)
 
                     # Save the plot as a .png file
-                    output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_obs_vs_sim_scatter.png'
+                    output_path = fsate.std_regr_pred_obs_path(dir_out_viz_base=dir_out_viz_base,
+                                                               ds=ds, metr=metric, algo_str=algo,
+                                                            split_type='prediction')
                     plt.savefig(output_path, dpi=300, bbox_inches='tight')
                     plt.clf()
                     plt.close()
