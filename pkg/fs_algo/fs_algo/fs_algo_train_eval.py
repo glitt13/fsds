@@ -1529,11 +1529,11 @@ def plot_pred_vs_obs_regr(y_pred, y_obs, ds:str, metr:str):
     # Adapted from plot in bolotinl's fs_perf_viz.py
     
     # Plot the observed vs. predicted module performance
-    plt.scatter(x=y_obs,y=y_pred, c='teal')
+    plt.scatter(x=y_obs,y=y_pred)
     plt.axline((0, 0), (1, 1), color='black', linestyle='--')
     plt.ylabel('Predicted {}'.format(metr))
     plt.xlabel('Actual {}'.format(metr))
-    plt.title('Observed vs. Predicted Performance: {}'.format(ds))
+    plt.title('Observed vs. RaFTS Predicted Performance: {}'.format(ds))
     fig = plt.gcf()
     return fig
 
@@ -1596,7 +1596,8 @@ def plot_map_pred(geo_df, states,title,metr,colname_data='performance'):
     geo_df.plot(column=colname_data, ax=ax, markersize=150, cmap='viridis', legend=False, zorder=2) # delete zorder to plot points behind states boundaries
     # States
     states.boundary.plot(ax=ax, color="#555555", linewidth=1, zorder=1)  # Plot states boundary again with lower zorder
-
+    
+    # TODO: need to customize the colorbar min and max based on the metric
     ## cbar = plt.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=0,vmax = 1), cmap='viridis')
     cbar = plt.cm.ScalarMappable(cmap='viridis')
     ax.tick_params(axis='x', labelsize= 24)

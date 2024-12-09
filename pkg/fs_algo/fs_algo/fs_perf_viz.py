@@ -126,19 +126,7 @@ if __name__ == "__main__":
 
                 # Does the user want a scatter plot comparing the observed module performance and the predicted module performance by RaFTS?
                 if 'pred_map' in true_keys:
-                    url = 'https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip'
-                    zip_filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.zip'
-                    filename = f'{dir_out}/data_visualizations/cb_2018_us_state_500k.shp'
-
-                    if not Path(zip_filename).exists():
-                        print('Downloading shapefile...')
-                        urllib.request.urlretrieve(url, zip_filename)
-                    if not Path(filename).exists():
-                        with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
-                            zip_ref.extractall(f'{dir_out}/data_visualizations')
-
-                    states = gpd.read_file(filename)
-                    states = states.to_crs("EPSG:4326")
+                    states = fsate.gen_conus_basemap(f'{dir_out}/data_visualizations/')
 
                     # Plot performance on map
                     lat = data['Y']
@@ -148,25 +136,9 @@ if __name__ == "__main__":
                     geo_df['performance'] = data['prediction'].values
                     geo_df.crs = ("EPSG:4326")
 
-                    fig, ax = plt.subplots(1, 1, figsize=(20, 24))
-
-                    # Points
-                    geo_df.plot(column="performance", ax=ax, markersize=150, cmap='viridis', legend=False, zorder=2, edgecolor = 'black') # delete zorder to plot points behind states boundaries
-                    # States
-                    states.plot(ax=ax, color='white', edgecolor='black', linewidth=1, zorder=1)
-
-                    # TODO: need to customize the colorbar min and max based on the metric
-                    cbar = plt.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=-0.41,vmax = 1), cmap='viridis')
-                    ax.tick_params(axis='x', labelsize= 24)
-                    ax.tick_params(axis='y', labelsize= 24)
-                    plt.xlabel('Latitude',fontsize = 26)
-                    plt.ylabel('Longitude',fontsize = 26)
-                    cbar_ax = plt.colorbar(cbar, ax=ax,fraction=0.02, pad=0.04)
-                    cbar_ax.set_label(label=metric,size=24)
-                    cbar_ax.ax.tick_params(labelsize=24)  # Set colorbar tick labels size
-                    plt.title("Predicted Performance: {}".format(ds), fontsize = 28)
-                    ax.set_xlim(-126, -66)
-                    ax.set_ylim(24, 50)
+                    fsate.plot_map_pred(geo_df=geo_df, states=states, 
+                                        title=f'RaFTS Predicted Performance Map: {ds}', 
+                                        metr=metric, colname_data='performance')
 
                     # Save the plot as a .png file
                     output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_prediction_map.png'
@@ -202,11 +174,8 @@ if __name__ == "__main__":
                     data = pd.merge(data, obs, how = 'inner', on = 'identifier')
 
                     # Plot the observed vs. predicted module performance
-                    plt.scatter(data[metric], data['prediction'])
-                    plt.axline((0, 0), (1, 1), color='black', linestyle='--')
-                    plt.xlabel('Actual {}'.format(metric))
-                    plt.ylabel('Predicted {}'.format(metric))
-                    plt.title('Observed vs. Predicted Performance: {}'.format(ds))
+                    fsate.plot_pred_vs_obs_regr(y_pred=data['prediction'], y_obs=data[metric], 
+                                                ds = ds, metr=metric)
 
                     # Save the plot as a .png file
                     output_path = f'{dir_out}/data_visualizations/{ds}_{algo}_{metric}_obs_vs_sim_scatter.png'
