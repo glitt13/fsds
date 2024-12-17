@@ -22,3 +22,6 @@ make_plots: False # Optional. Default False. Should plots be created & saved to 
 same_test_ids: True # Optional. Default True. Should all datasets being compared have the same test ID? If not, algos will be trained true to the test_size, but the train_test split may not be the same across each dataset (particularly total basins differ)
 metrics: # OPTIONAL. The metrics of interest for processing. If not provided, all metrics in the input dataset will be processed. Must be a sublist structure.
   - 'NNSE' 
+  - 'FHV'
+  - 'FLV'
+  - 'FMS'

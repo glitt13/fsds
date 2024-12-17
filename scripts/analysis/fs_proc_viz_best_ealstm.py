@@ -115,9 +115,18 @@ if __name__ == "__main__":
     df_pred_obs_all = pd.concat(dict_pred_obs_ds)
 
     #%% CUSTOM MUNGING
-    
+    df_pred_obs_all['name'] = df_pred_obs_all['dataset'].str.replace('kratzert19_','')
 
-    df_pred_obs_all['name'] = df_prod_obs_all['dataset'].str.replace('kratzert19_','')
+    # Simplify all lstms to just 'lstm'
+    df_pred_obs_all['name_lstm'] = df_pred_obs_all['name']
+    df_pred_obs_all['name_lstm']= df_pred_obs_all['name'].apply(lambda x: 'lstm' if 'lstm' in x else x)
+
+    df_pred_obs_sub = df_pred_obs_all[df_pred_obs_all['name'].isin(['SAC_SMA', 'lstm_NSE', 'ealstm_NSE',
+       'lstm_no_static_NSE', 'mHm_basin', 'q_sim_fuse_904',
+        'HBV_ub', 'VIC_basin'])]
+
+
+
     # TODO which metrics best when using idxmax()?
     # TODO which metrics are allowed to be predicted based on evaluation criteria?
     #%% Generate comparison plot
@@ -128,3 +137,21 @@ if __name__ == "__main__":
             # Save the same plot in every dataset subdirectory
             fsate.plot_best_algo_wrap(best_df, dir_out_viz_base,
                         subdir_anlys=ds, metr=metr,comparison_col = 'dataset')
+
+
+
+        #%% 2024 AGU-specific plot
+
+        path_best_map_plot = fsate.std_map_best_path(dir_out_viz_base,metr,'agu2024')
+        states = fsate.gen_conus_basemap(dir_out_basemap = dir_out_viz_base)
+        title = f"Best predicted performance: {metr}"
+
+        
+
+
+
+        plot_best_perf = plot_best_perf_map(best_df, states,title, comparison_col)
+        plot_best_perf.savefig(path_best_map_plot, dpi=300, bbox_inches='tight')
+        print(f"Wrote best performance map to \n{path_best_map_plot}")
+
+
