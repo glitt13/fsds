@@ -150,7 +150,7 @@ class TestFsRetrNhdpComids(unittest.TestCase):
         featureID = 'USGS-{gage_id}'
         gage_ids = ["01031500", "08070000"]
 
-        result = fs_algo_train_eval.fs_retr_nhdp_comids(featureSource, featureID, gage_ids)
+        result = fs_algo_train_eval.fs_retr_nhdp_comids_geom(featureSource, featureID, gage_ids)
 
         # Assertions
         self.assertEqual(result, ['1722317', '1520007'])
