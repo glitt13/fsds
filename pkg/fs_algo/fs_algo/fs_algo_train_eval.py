@@ -555,6 +555,24 @@ def std_Xtrain_path(dir_out_alg_ds:str | os.PathLike, dataset_id: str
     path_Xtrain = Path(dir_out_alg_ds) / Path(basename_alg_ds + '.csv')
     return path_Xtrain
 
+def std_eval_metrs_path(dir_out_viz_base: str|os.PathLike,
+                      ds:str, metr:str
+                      ) -> pathlib.PosixPath:
+    """Standardize the filepath for saving model evaluation metrics table
+
+    :param dir_out_viz_base: The base output directory
+    :type dir_out_viz_base: str | os.PathLike
+    :param ds:The dataset name
+    :type ds: str
+    :param metric:  The metric or hydrologic signature identifier of interest
+    :type metric: str
+    :return: The model metrics filepath
+    :rtype: pathlib.PosixPath
+    """
+    path_eval_metr = Path(f"{dir_out_viz_base}/{ds}/algo_eval_{ds}_{metr}.csv")
+    path_eval_metr.parent.mkdir(parents=True,exist_ok=True)
+    return path_eval_metr
+
 
 def std_test_pred_obs_path(dir_out_anlys_base:str|os.PathLike,ds:str, metr:str
                       )->pathlib.PosixPath:
@@ -843,9 +861,9 @@ class AlgoTrainEval:
                 print(f"      Performing Random Forest Training")
             
             rf = RandomForestRegressor(n_estimators=self.algo_config['rf'].get('n_estimators',300),
-                                       max_depth = self.algo_config_grid['rf'].get('max_depth', None),
-                                       min_samples_split=self.algo_config_grid['rf'].get('min_samples_split',2),
-                                       min_samples_leaf=self.algo_config_grid['rf'].get('min_samples_leaf',1),
+                                       max_depth = self.algo_config['rf'].get('max_depth', None),
+                                       min_samples_split=self.algo_config['rf'].get('min_samples_split',2),
+                                       min_samples_leaf=self.algo_config['rf'].get('min_samples_leaf',1),
                                        oob_score=True,
                                        random_state=self.rs,
                                        )
@@ -869,14 +887,14 @@ class AlgoTrainEval:
             # # ci now contains the confidence intervals for each prediction
             
             # --- Calculate confidence intervals ---
-            ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
+            # ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
 
             # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric,
-                                    'ci': ci}
+                                    'metric': self.metric}#,
+                                    #'ci': ci}
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
             
