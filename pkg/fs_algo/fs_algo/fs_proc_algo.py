@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
             # Retrieve evaluation metrics dataframe
             rslt_eval[metr] = train_eval.eval_df
-            path_eval_metr = fsate.std_eval_metrs_path(dir_out_viz_base, ds,metr)
+            path_eval_metr = fsate.std_eval_metrs_path(dir_out_alg_ds, ds,metr)
             train_eval.eval_df.to_csv(path_eval_metr)
             del train_eval
         # Compile results and write to file
