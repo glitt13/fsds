@@ -182,8 +182,10 @@ if __name__ == "__main__":
             else:
                 raise ValueError("Problem with expected dimensions. Consider how missing data may be handled with AlgoTrainEval.train_eval()")
 
-            # Retrieve evaluation metrics dataframe
+            # Retrieve evaluation metrics dataframe & write to file
             rslt_eval[metr] = train_eval.eval_df
+            path_eval_metr = fsate.std_eval_metrs_path(dir_out_viz_base, ds,metr)
+            train_eval.eval_df.to_csv(path_eval_metr)
 
             #%% Random Forest Feature Importance
             y_test = train_eval.y_test

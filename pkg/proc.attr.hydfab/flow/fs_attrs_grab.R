@@ -46,13 +46,6 @@ message(glue::glue("Attribute variables to be acquired include :
   \n{paste0(unlist(unname(Retr_Params$vars)),collapse='\n')}"))
 
 
-message(glue::glue("Attribute dataset sources include the following:\n
-  {paste0(var_names_sub,collapse='\n')}"))
-
-message(glue::glue("Attribute variables to be acquired include :\n
-  {paste0(sub_attr_sel,collapse='\n')}"))
-
-
 # PROCESS ATTRIBUTES
 dt_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrite = TRUE)
 
