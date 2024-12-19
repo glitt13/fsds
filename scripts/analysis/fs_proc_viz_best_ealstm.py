@@ -121,11 +121,10 @@ if __name__ == "__main__":
     df_pred_obs_all['name_lstm'] = df_pred_obs_all['name']
     df_pred_obs_all['name_lstm']= df_pred_obs_all['name'].apply(lambda x: 'lstm' if 'lstm' in x else x)
 
+    # Subset to  the NSE-optimized lstms
     df_pred_obs_sub = df_pred_obs_all[df_pred_obs_all['name'].isin(['SAC_SMA', 'lstm_NSE', 'ealstm_NSE',
        'lstm_no_static_NSE', 'mHm_basin', 'q_sim_fuse_904',
         'HBV_ub', 'VIC_basin'])]
-
-
 
     # TODO which metrics best when using idxmax()?
     # TODO which metrics are allowed to be predicted based on evaluation criteria?
@@ -146,12 +145,6 @@ if __name__ == "__main__":
         states = fsate.gen_conus_basemap(dir_out_basemap = dir_out_viz_base)
         title = f"Best predicted performance: {metr}"
 
-        
-
-
-
         plot_best_perf = plot_best_perf_map(best_df, states,title, comparison_col)
         plot_best_perf.savefig(path_best_map_plot, dpi=300, bbox_inches='tight')
         print(f"Wrote best performance map to \n{path_best_map_plot}")
-
-
