@@ -58,7 +58,7 @@ attr_cfig_parse <- function(path_attr_config){
   s3_base <- base::unlist(raw_config$hydfab_config)[['s3_base']]#s3://lynker-spatial/tabular-resources" # s3 path containing hydrofabric-formatted attribute datasets
   s3_bucket <- base::unlist(raw_config$hydfab_config)[['s3_bucket']] #'lynker-spatial' # s3 bucket containing hydrofabric data
 
-  # s3 path to hydroatlas data formatted for hydrofabric
+  # s3 path to hydroatlas data formatted for hydrofabric (may also be a local path)
   if ("s3_path_hydatl" %in% names(base::unlist(raw_config$attr_select))){
     s3_path_hydatl <- glue::glue(base::unlist(raw_config$attr_select)[['s3_path_hydatl']])  # glue::glue('{s3_base}/hydroATLAS/hydroatlas_vars.parquet')
   } else {
@@ -218,46 +218,40 @@ proc_attr_std_hfsub_name <- function(comid,custom_name='', fileext='gpkg'){
   return(hfsub_fn)
 }
 
-proc_attr_hydatl <- function(hf_id, s3_path, ha_vars, local_path=NA){
+proc_attr_hydatl <- function(hf_id, path_ha, ha_vars,
+                             s3_ha='s3://lynker-spatial/tabular-resources/hydroATLAS/hydroatlas_vars.parquet'){
   #' @title Retrieve hydroatlas variables
   #' @description retrieves hydrofabric variables from s3 bucket
-  #' @param hf_id numeric. the hydrofabric id, expected to be the COMID
-  #' @param s3_path character. full path to the s3 bucket's file holding the hydroatlas data
+  #' @param hf_id character. the hydrofabric id, usually the COMID, may be vector
+  #' @param path_ha character. full path to the local parquet or s3 bucket's
+  #'  parquet holding the hydroatlas data as formatted for the hydrofabric.
   #' @param ha_vars list of characters. The variables of interest in the hydroatlas v1
-  #' @param local_path character. The local filepath where hydroatlas data are saved to reduce s3 bucket connections.
+  #' @param s3_ha character. The s3 path containing original
+  #' hydroatlas-hydrofabric dataset.
   #' @export
-  # Reads in hydroatlas variables https://data.hydrosheds.org/file/technical-documentation/HydroATLAS_TechDoc_v10_1.pdf
+  # Reads hydroatlas variables https://data.hydrosheds.org/file/technical-documentation/HydroATLAS_TechDoc_v10_1.pdf
+  #  in a form adapted to the hydrofabric
 
-  # if(!is.numeric(hf_id)){
-  #   warning(paste0("The hf_id ", hf_id, " expected to be numeric. Converting"))
-  #   hf_id <- as.numeric(hf_id)
-  # }
-
-
-
-  # TODO check for local hydroatlas dataset before proceeding with s3 connection
-  if(!base::is.na(local_path)){
-    stop(paste0("The local path capability does not yet exist for saving hydroatlas
-                   data:\n",local_path))
-
-  } else {
-    bucket <- try(arrow::s3_bucket(s3_path))
+  if(base::grepl("s3",path_ha)){ # Run a check that the bucket connection works
+    bucket <- try(arrow::s3_bucket(path_ha))
     if('try-error' %in% base::class(bucket)){
       stop(glue::glue("Could not connect to an s3 bucket path for hydroatlas
-                      data retrieval. Reconsider the s3_path of {s3_path}"))
+                      data retrieval. Reconsider the path_ha of {path_ha}"))
     }
-
-    ha <- arrow::open_dataset(s3_path) %>%
-      dplyr::filter(hf_id %in% !!hf_id) %>%
-      dplyr::select("hf_id", any_of(ha_vars)) %>%
-      dplyr::collect()
+  } else { # presumed to be local path location
+    if(!file.exists(path_ha)){
+      warning(glue::glue(
+       "Local filepath does not exist for hydroatlas parquet file:\n{path_ha}
+       \nAssigning lynker-spatial s3 path:\n{s3_ha}"))
+      path_ha <- s3_ha
+    }
   }
 
-  if(!base::is.na(local_path)){
-    # TODO generate standard hydroatlas filename
+  ha <- arrow::open_dataset(path_ha) %>%
+    dplyr::filter(hf_id %in% !!hf_id) %>%
+    dplyr::select("hf_id", dplyr::any_of(ha_vars)) %>%
+    dplyr::collect()
 
-    # TODO write hydroatlas filename
-  }
   return(ha)
 }
 
@@ -268,19 +262,29 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
   #' @param usgs_vars list class. The standardized names of NHDplus variables.
   #' @seealso \code{nhdplusTools::get_characteristics_metadata() }
   #' @export
+  #'
+  # Changelog/contributions
+  #. 2024-12-20 Adapt to parallel processing and multi-comid retrieval, GL
+
   # Get the s3 urls for each variable of interest
   usgs_meta <- nhdplusTools::get_characteristics_metadata() %>%
     dplyr::filter(ID %in% usgs_vars)
 
-  # Extract the variable data corresponding to the COMID
-  ls_usgs_mlti <- list()
-  for (r in 1:nrow(usgs_meta)){
+  # Plan for parallel processing
+  future::plan(multisession)
+
+  # Extract the variable data corresponding to the COMID in parallel
+  ls_usgs_mlti <- future.apply::future_lapply(1:nrow(usgs_meta), function(r) {
     var_id <- usgs_meta$ID[r]
-    ls_usgs_mlti[[r]] <- arrow::open_dataset(usgs_meta$s3_url[r]) %>%
-      dplyr::select(dplyr::all_of(c("COMID",var_id))) %>%
-      dplyr::filter(COMID %in% comid) %>% dplyr::collect() %>%
-      pkgcond::suppress_warnings()
-  }
+    arrow::open_dataset(usgs_meta$s3_url[r]) %>%
+      dplyr::select(dplyr::all_of(c("COMID", var_id))) %>%
+      dplyr::filter(COMID %in% comid) %>%
+      dplyr::collect() %>%
+      suppress_warnings()
+  })
+
+  # Combine all the results
+  usgs_subvars <- purrr::reduce(ls_usgs_mlti, dplyr::full_join, by = 'COMID')
 
   # Combining it all
   usgs_subvars <- ls_usgs_mlti %>% purrr::reduce(dplyr::full_join, by = 'COMID')
@@ -343,6 +347,8 @@ proc_attr_hf <- function(comid, dir_db_hydfab,custom_name="{lyrs}_",fileext = 'g
   nldi_feat <- list(featureSource ="comid",
                          featureID = comid)
 
+  hfsubsetR::get_subset(comid = comids,outfile = fp_cat,lyrs = lyrs,hf_version =
+                        )
   # Download hydrofabric file if it doesn't exist already
   # Utilize hydrofabric subsetter for the catchment and download to local path
   pkgcond::suppress_warnings(hfsubsetR::get_subset(nldi_feature = nldi_feat,
@@ -425,6 +431,96 @@ proc_attr_exst_wrap <- function(comid,path_attrs,vars_ls,bucket_conn=NA){
   return(list(dt_all=dt_all,need_vars=need_vars))
 }
 
+proc_attr_wrap_mlti <- function(comids, Retr_Params,lyrs="network",overwrite=FALSE,hfab_retr=FALSE){
+  #' @title Wrapper to retrieve variables from multiple comids when processing attributes
+  #' @author Guy Litt \email{guy.litt@noaa.gov}
+  #' @description Identifies a comid location using the hydrofabric and then
+  #' acquires user-requested variables from multiple sources. Writes all
+  #' acquired variables to a parquet file as a standard data.table format.
+  #' Re-processing runs only download data that have not yet been acquired.
+  #' @details Function returns & writes a data.table of all these fields:
+  #'   featureID - e.g. USGS common identifier (default)
+  #'   featureSource - e.g. "COMID" (default)
+  #'   data_source - where the data came from (e.g. 'usgs_nhdplus__v2','hydroatlas__v1')
+  #'   dl_timestamp - timestamp of when data were downloaded
+  #'   attribute - the variable identifier used in a particular dataset
+  #'   value - the value of the identifier
+  #' @param comids list of character. The common identifier USGS location codes for surface water features.
+  #' @param Retr_Params list. List of list structure with parameters/paths needed to acquire variables of interest
+  #' @param lyrs character. The layer names of interest from the hydrofabric gpkg. Default 'network'
+  #' @param overwrite boolean. Should the hydrofabric cloud data acquisition be redone and overwrite any local files? Default FALSE.
+  #' @param hfab_retr boolean. Should the hydrofabric geopackage data be retrieved? Default FALSE.
+  #' @seealso \code{\link{proc_attrs_gageids}}
+  #' @export
+  #'
+
+  # TODO GOAL: Create a compiled dataframe of comid rows & attribute columns
+  # TODO Split attributes by comid and update local parquet files named w/ comid
+  # TODO determine needed vars for e/ comid and only update those ones??
+
+  attr_data <- list()
+  # --------------- dataset grabber ---------------- #
+  ## USGS NHDPlus ATTRIBUTES
+  if( (base::any(base::grepl("usgs_vars", base::names(Retr_Params$vars)))) &&
+      (base::all(!base::is.na(Retr_Params$vars$usgs_vars))) ){
+    # NOTE THAT proc_attr_usgs_nhd is DESIGNED FOR MULTIPLE VARIABLES & COMIDS
+
+    # USGS nhdplusv2 query; list name formatted as {dataset_name}__v{version_number}
+    attr_data[['usgs_nhdplus__v2']] <- proc.attr.hydfab::proc_attr_usgs_nhd(comid=comids,
+                                          usgs_vars=Retr_Params$vars$usgs_vars)
+  }
+
+  # TODO define net$hf_id
+  # TODO define need_vars, especially for hydrofabric
+  #     need_vars based on which comids do not have all variables of interest
+
+  if (('ha_vars' %in% base::names(need_vars)) &&
+      (base::all(!base::is.na(need_vars$ha_vars)))){
+    # Hydroatlas variable query; list name formatted as {dataset_name}__v{version_number}
+    attr_data[['hydroatlas__v1']] <- proc.attr.hydfab::proc_attr_hydatl(
+                                path_ha=Retr_Params$paths$s3_path_hydatl,
+                                hf_id=net$hf_id,
+                                ha_vars=need_vars$ha_vars) %>%
+                      dplyr::rename("COMID" = "hf_id") # ensures 'COMID' exists as colname
+  }
+  # ----------- existing dataset checker ----------- #
+  ls_chck <- proc.attr.hydfab::proc_attr_exst_wrap(comid,path_attrs,
+                                                   vars_ls,bucket_conn=NA)
+  dt_all <- ls_chck$dt_all
+  need_vars <- ls_chck$need_vars
+
+
+  # if(hfab_retr){ # Retrieve the hydrofabric data, downloading to dir_db_hydfab
+  #   # Retrieve the hydrofabric id
+  #   for(comid in comids){
+  #     net <- try(proc.attr.hydfab::proc_attr_hf(comid=comid,
+  #                                               dir_db_hydfab=Retr_Params$paths$dir_db_hydfab,
+  #                                               custom_name ="{lyrs}_",
+  #                                               lyrs=Retr_Params$xtra_hfab$lyrs,
+  #                                               hf_version = Retr_Params$xtra_hfab$hf_version,
+  #                                               type = Retr_Params$xtra_hfab$type,
+  #                                               domain = Retr_Params$xtra_hfab$domain,
+  #                                               overwrite=overwrite))
+  #     if ('try-error' %in% base::class(net)){
+  #       warning(glue::glue("Could not acquire hydrofabric for comid {comid}. Proceeding to acquire variables of interest without hydrofabric."))
+  #       net <- list()
+  #       net$hf_id <- comid
+  #     }
+  #   }
+  #
+  # } else {
+  #   # TODO what happens here?
+  #   # TODO change to comids rather than comid
+  #   stop("FIGURE THIS OUT")
+  #   net <- list()
+  #   net$hf_id <- comid
+  # }
+
+
+
+}
+
+
 proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hfab_retr=FALSE){
   #' @title Wrapper to retrieve variables when processing attributes
   #' @author Guy Litt \email{guy.litt@noaa.gov}
@@ -490,7 +586,7 @@ proc_attr_wrap <- function(comid, Retr_Params, lyrs='network',overwrite=FALSE,hf
   if (('ha_vars' %in% base::names(need_vars)) &&
       (base::all(!base::is.na(need_vars$ha_vars)))){
     # Hydroatlas variable query; list name formatted as {dataset_name}__v{version_number}
-    attr_data[['hydroatlas__v1']] <- proc.attr.hydfab::proc_attr_hydatl(s3_path=Retr_Params$paths$s3_path_hydatl,
+    attr_data[['hydroatlas__v1']] <- proc.attr.hydfab::proc_attr_hydatl(path_ha=Retr_Params$paths$s3_path_hydatl,
                                           hf_id=net$hf_id,
                                           ha_vars=need_vars$ha_vars) %>%
                                 # ensures 'COMID' exists as colname
@@ -558,10 +654,10 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   #' Returns a data.table of all data returned from \code{nhdplusTools::get_nldi_feature}
   #' that corresponded to the gage_ids
   #' @param gage_ids array of gage_id values to be queried for catchment attributes
-  #' @param featureSource The \code{\link[nhdplusTools]{get_nldi_features}}feature featureSource,
+  #' @param featureSource The \code{\link[nhdplusTools]{get_nldi_feature}}feature featureSource,
   #' e.g. 'nwissite'
   #' @param featureID a glue-configured conversion of gage_id into a recognized
-  #' featureID for \code{\link[nhdplusTools]{get_nldi_features}}. E.g. if gage_id
+  #' featureID for \code{\link[nhdplusTools]{get_nldi_feature}}. E.g. if gage_id
   #' represents exactly what the nldi_feature$featureID should be, then
   #'  featureID="{gage_id}". In other instances, conversions may be necessary,
   #'  e.g. featureID="USGS-{gage_id}". When defining featureID, it's expected
@@ -597,7 +693,7 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   if(base::is.null(hfab_retr)){ # Use default in the proc_attr_wrap() function
     hfab_retr <- base::formals(proc.attr.hydfab::proc_attr_wrap)$hfab_retr
   }
-  ls_site_feat <- list()
+
   ls_comid <- base::list()
   for (gage_id in gage_ids){ #
     if(!base::exists("gage_id")){
@@ -625,20 +721,32 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
         message(glue::glue("Geospatial search found a comid value of: {comid}"))
       }
       ls_comid[[gage_id]] <- comid
-
-      # Retrieve the variables corresponding to datasets of interest & update database
-      loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
-                                                    Retr_Params=Retr_Params,
-                                                    lyrs=lyrs,overwrite=FALSE,
-                                                    hfab_retr=hfab_retr))
-      loc_attrs$gage_id <- gage_id # Add the original identifier to dataset
-      ls_site_feat[[gage_id]] <- loc_attrs
-      if("try-error" %in% class(loc_attrs)){
-        message(glue::glue("Skipping gage_id {gage_id} corresponding to comid {comid}"))
-      }
-    } else {
-      message(glue::glue("Skipping {gage_id}"))
     }
+
+    ls_site_feat <- list()
+    if (length(Retr_Params$vars)==1 && names(Retr_Params$vars)[1] == 'usgs_vars'){
+      # TODO add usgs_vars-specific solution here
+      stop("ADD USGS SOLUTION HERE")
+    } else { # Running individual
+      for (gage_id in gage_ids){
+        # TODO add option to grab all comid-driven data concurrently
+        # Retrieve the variables corresponding to datasets of interest & update database
+        loc_attrs <- try(proc.attr.hydfab::proc_attr_wrap(comid=comid,
+                                                          Retr_Params=Retr_Params,
+                                                          lyrs=lyrs,overwrite=FALSE,
+                                                          hfab_retr=hfab_retr))
+        loc_attrs$gage_id <- gage_id # Add the original identifier to dataset
+        ls_site_feat[[gage_id]] <- loc_attrs
+        if("try-error" %in% class(loc_attrs)){
+          message(glue::glue("Skipping gage_id {gage_id} corresponding to comid {comid}"))
+        }
+      } else {
+        message(glue::glue("Skipping {gage_id}"))
+      }
+    }
+
+
+
   }
   just_comids <- ls_comid %>% base::unname() %>% base::unlist()
 
@@ -704,7 +812,7 @@ proc_attr_read_gage_ids_fs <- function(dir_dataset, ds_filenames=''){
   #' gage_ids: array of gage_id values
   #' featureSource: The type of nhdplus feature source corresponding to gage_id
   #' featureID: The method of converting gage_id into a standardized featureSource's featureID
-  #' @seealso \code{\link[nhdplusTools]{get_nldi_features}}
+  #' @seealso \code{\link[nhdplusTools]{get_nldi_feature}}
   #' @export
 
   # Changelog/contributions
