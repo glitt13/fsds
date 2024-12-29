@@ -5,13 +5,7 @@
 \title{Wrapper to retrieve variables from multiple comids when processing
 attributes. Returns all attribute data for all comid locations}
 \usage{
-proc_attr_mlti_wrap(
-  comids,
-  Retr_Params,
-  lyrs = "network",
-  overwrite = FALSE,
-  hfab_retr = FALSE
-)
+proc_attr_mlti_wrap(comids, Retr_Params, lyrs = "network", overwrite = FALSE)
 }
 \arguments{
 \item{comids}{list of character. The common identifier USGS location codes for surface water features.}
@@ -21,8 +15,6 @@ proc_attr_mlti_wrap(
 \item{lyrs}{character. The layer names of interest from the hydrofabric gpkg. Default 'network'}
 
 \item{overwrite}{boolean. Should the hydrofabric cloud data acquisition be redone and overwrite any local files? Default FALSE.}
-
-\item{hfab_retr}{boolean. Should the hydrofabric geopackage data be retrieved? Default FALSE.}
 }
 \description{
 Identifies a comid location using the hydrofabric and then

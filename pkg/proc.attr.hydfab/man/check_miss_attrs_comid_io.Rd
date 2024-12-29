@@ -9,7 +9,8 @@ check_miss_attrs_comid_io(dt_all, attr_vars, dir_db_attrs)
 \arguments{
 \item{dt_all}{Dataframe/datatable of all locations and attributes}
 
-\item{attr_vars}{List of the data source and expected attributes (e.g. Retr_Params$vars)}
+\item{attr_vars}{List of the data source and expected attributes
+(e.g. list('usgs_vars' = c("TOT_BFI","TOT_TWI")) from Retr_Params$vars)}
 
 \item{dir_db_attrs}{Directory where attribute data are stored.}
 }

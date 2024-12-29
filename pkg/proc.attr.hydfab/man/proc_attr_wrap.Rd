@@ -2,7 +2,7 @@
 % Please edit documentation in R/proc_attr_grabber.R
 \name{proc_attr_wrap}
 \alias{proc_attr_wrap}
-\title{Wrapper to retrieve variables when processing attributes}
+\title{DEPRECATED. Wrapper to retrieve variables when processing attributes}
 \usage{
 proc_attr_wrap(
   comid,
@@ -24,7 +24,8 @@ proc_attr_wrap(
 \item{hfab_retr}{boolean. Should the hydrofabric geopackage data be retrieved? Default FALSE.}
 }
 \description{
-Identifies a comid location using the hydrofabric and then
+DEPRECATED. Use \link{proc_attr_mlti_wrap} instead.
+Identifies a single comid location using the hydrofabric and then
 acquires user-requested variables from multiple sources. Writes all
 acquired variables to a parquet file as a standard data.table format.
 Re-processing runs only download data that have not yet been acquired.
@@ -40,6 +41,8 @@ value - the value of the identifier
 }
 \seealso{
 \link{proc_attrs_gageids}
+
+\link{proc_attr_mlti_wrap}
 }
 \author{
 Guy Litt \email{guy.litt@noaa.gov}
