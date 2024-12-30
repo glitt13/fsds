@@ -33,7 +33,7 @@ if(base::length(cmd_args)!=1){
   warning("Unexpected to have more than one argument in Rscript fs_attrs_grab.R /path/to/attribute_config.yaml.")
 }
 
-# Read in config file, e.g.  "~/git/formulation-selector/scripts/eval_ingest/SI/SI_attr_config.yaml"
+# Read in config file, e.g.  "~/git/formulation-selector/scripts/eval_ingest/xssa_us/xssaus_attr_config.yaml"
 path_attr_config <- cmd_args[1] # "~/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attr_config.yaml"
 
 Retr_Params <- proc.attr.hydfab::attr_cfig_parse(path_attr_config)
@@ -47,7 +47,7 @@ message(glue::glue("Attribute variables to be acquired include :
 
 
 # PROCESS ATTRIBUTES
-dt_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrite = TRUE)
+dt_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrite = FALSE)
 
 # --------------------------- Compile attributes --------------------------- #
 # Demonstration of how to retrieve attributes/comids that exist inside dir_db_attrs:
