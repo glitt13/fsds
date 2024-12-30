@@ -17,6 +17,7 @@ library(yaml)
 library(future)
 library(purrr)
 library(tidyr)
+library(tools)
 
 attr_cfig_parse <- function(path_attr_config){
   #' @title Read and parse the attribute config yaml file to create parameter
@@ -419,7 +420,21 @@ proc_attr_exst_wrap <- function(path_attrs,vars_ls,bucket_conn=NA){
   } # TODO adapt if stored in cloud (e.g. s3 connection checker)
 
   if(path_attrs_exst==TRUE){
-    dt_all <- arrow::open_dataset(path_attrs) %>% data.table::as.data.table()
+    if(tools::file_ext(path_attrs)==""){
+      # This is a directory, so list all parquet files inside it
+      files_attrs <-  base::list.files(path_attrs, pattern = "parquet")
+      if(length(files_attrs)==0){
+        stop(glue::glue("No parquet files found inside {path_attrs}"))
+      }
+      # Read in all parquet files inside the directory
+      paths_file_attrs <- base::file.path(path_attrs, files_attrs)
+      dt_all <- arrow::open_dataset(paths_file_attrs) %>%
+        data.table::as.data.table()
+    } else { # Read in the parquet file(s) passed into this function
+      dt_all <- arrow::open_dataset(path_attrs) %>%
+        data.table::as.data.table()
+    }
+
     need_vars <- list()
     for(var_srce in names(vars_ls)){
       # Compare/contrast what is there vs. desired
@@ -932,6 +947,10 @@ retr_comids <- function(gage_ids,featureSource,featureID,dir_db_attrs){
   # TODO create a std function that makes the path_meta_loc
   path_meta_loc <- proc.attr.hydfab:::std_path_map_loc_ids(Retr_Params$paths$dir_db_attrs)
   if(file.exists(path_meta_loc)){
+    if(!base::grepl('csv',path_meta_loc)){
+      stop(glue::glue("Expecting the file path to metadata to be a csv:
+                      \n{path_meta_loc}"))
+    }
     df_comid_featid <- utils::read.csv(path_meta_loc,colClasses = 'character')
   } else {
     df_comid_featid <- base::data.frame()
@@ -1067,9 +1086,10 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
                     comids=just_comids,Retr_Params=Retr_Params,
                     lyrs=lyrs,overwrite=overwrite)
 
-  # Add the original gage_id back into dataset
-  df_map_comid_gageid <- base::data.frame(featureID = just_comids,
-                                          gage_id = names(ls_comid))
+  # Add the original gage_id back into dataset **and ensure character class!!**
+  df_map_comid_gageid <- base::data.frame(featureID=as.character(just_comids),
+                                          gage_id=as.character(names(ls_comid)))
+  dt_site_feat_retr$featureID <- as.character(dt_site_feat_retr$featureID)
   dt_site_feat <- base::merge(dt_site_feat_retr,df_map_comid_gageid,by="featureID")
 
   if(any(!names(ls_comid) %in% dt_site_feat$gage_id)){
@@ -1259,6 +1279,7 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
                                                            overwrite=overwrite)
       dt_site_feat$dataset_name <- Retr_Params$loc_id_read$loc_id_filepath
     } else {
+      warning("TODO: add check that user didn't provide parameter expecting to read data")
       # TODO add check that user didn't provide parameter expecting to read data
     }
     # Combine lists
@@ -1276,6 +1297,19 @@ grab_attrs_datasets_fs_wrap <- function(Retr_Params,lyrs="network",overwrite=FAL
     write_type <- Retr_Params$write_type
     path_meta <- glue::glue(Retr_Params$paths$path_meta)
 
+    bool_path_meta <- (base::is.null(path_meta)) || (base::grepl("\\{", path_meta))
+    if(is.na(bool_path_meta)){ # some glue objects not defined
+      objs_glue <- base::list(ds_type=ds_type,write_type=write_type,
+                        dir_std_base=dir_std_base,path_meta=path_meta,
+                        ds=ds)
+      # Which objects that could be defined in glue are not?
+      ids_need_defined <- names(objs_glue)[unlist(lapply(names(objs_glue),
+                             function(x) is.null(objs_glue[[x]])))]
+
+      stop(glue::glue("path_meta not fully defined. Be sure that Retr_Params contains
+           appropriate objects, e.g. {paste0(ids_need_defined,collapse=', ')}
+           for Retr_Params$paths$path_meta:\n{Retr_Params$paths$path_meta}"))
+    }
     proc.attr.hydfab::write_meta_nldi_feat(dt_site_feat = ls_sitefeat_all[[ds]],
                          path_meta = path_meta)
   }
