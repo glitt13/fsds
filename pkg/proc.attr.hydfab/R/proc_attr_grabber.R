@@ -1543,32 +1543,36 @@ hfab_config_opt <- function(hfab_config,
   return(xtra_cfig_hfab)
 }
 
+std_miss_path <- function(dir_db_attrs){
+  #' @title standardize path to file listing all missing attributes
+  #' @param dir_db_attrs The directory to the attribute database
+  #' @seealso `fs_algo.tfrm_attrs.std_miss_path` python package
+  #' @export
+  path_missing_attrs <- file.path(dir_db_attrs,"missing","needed_loc_attrs.csv")
+  return(path_missing_attrs)
+}
+
 ######## MISSING COMID-ATTRIBUTES ##########
 fs_attrs_miss_wrap <- function(path_attr_config){
-  #' @title Wrapper searching for comid-attribute data identified as missing
-  #' @details Given missing comid-attribute pairings previously identified
+  #' @title DEPRECATED. Wrapper searching for comid-attribute data identified as
+  #'  missing
+  #' @details Use fs_attrs_miss_mlti_wrap instead.
+  #' Given missing comid-attribute pairings previously identified
   #'  from fs_tfrm_attrs.py, and generated as a file by python function
   #'  `fs_algo.tfrm_attr.write_missing_attrs`
   #' @param path_attr_config The file path to the attribute config file
   #' @seealso `fs_algo.tfrm_attr.write_missing_attrs` python
+  #' @seealso [fs_attrs_miss_mlti_wrap]
   #' @export
+  # Changelog / Contributions
+  #. 2024-12-31 Deprecated, GL
 
   # Generate the parameter list
   Retr_Params <- proc.attr.hydfab::attr_cfig_parse(path_attr_config = path_attr_config)
 
-
-  std_miss_path <- function(dir_db_attrs){
-    #' @title standardize path to file listing all missing attributes
-    #' @param dir_db_attrs The directory to the attribute database
-    #' @seealso `fs_algo.tfrm_attrs.std_miss_path` python package
-    #' @export
-    path_missing_attrs <- file.path(dir_db_attrs,"missing","needed_loc_attrs.csv")
-    return(path_missing_attrs)
-  }
-
-  path_missing_attrs <- std_miss_path(Retr_Params$paths$dir_db_attrs)
-  df_miss <- utils::read.csv(path_missing_attrs,)
-  if(nrow(df_miss)>0){
+  path_missing_attrs <- proc.attr.hydfab::std_miss_path(Retr_Params$paths$dir_db_attrs)
+  df_miss <- utils::read.csv(path_missing_attrs)
+  if(base::nrow(df_miss)>0){
     message("Beginning search for missing comid-attribute pairings.")
     df_miss$uniq_cmbo <- paste0(df_miss$comid,df_miss$attribute) # The unique comid-attr combo
     # Read in proc.attr.hydfab package's extdata describing attributes & data sources
@@ -1654,3 +1658,139 @@ fs_attrs_miss_wrap <- function(path_attr_config){
   }
 }
 
+uniq_id_loc_attr <- function(comids,attrs){
+  #' @title define the unique identifier of comid-attribute pairings
+  #' @seealso [fs_attrs_miss_mlti_wrap]
+  uniq_cmbo <- paste0(comids,"_",attrs)
+  return(uniq_cmbo)
+}
+
+fs_attrs_miss_mlti_wrap <- function(path_attr_config){
+  #' @title Wrapper searching for comid-attribute data identified as missing
+  #' @details Given missing comid-attribute pairings previously identified
+  #'  from fs_tfrm_attrs.py, and generated as a file by python function
+  #'  `fs_algo.tfrm_attr.write_missing_attrs`
+  #' @param path_attr_config The file path to the attribute config file
+  #' @seealso `fs_algo.tfrm_attr.write_missing_attrs` python
+  #' @seealso [fs_attrs_miss.R] Rscript that calls this wrapper
+  #' @export
+  # Changelog / Contributions
+  #. 2024-12-31 Originally created, GL
+
+  # Generate the parameter list
+  Retr_Params <- proc.attr.hydfab::attr_cfig_parse(path_attr_config = path_attr_config)
+
+  path_missing_attrs <- proc.attr.hydfab::std_miss_path(Retr_Params$paths$dir_db_attrs)
+  df_miss <- utils::read.csv(path_missing_attrs)
+  df_miss$uniq_cmbo <- proc.attr.hydfab:::uniq_id_loc_attr(df_miss$comid,df_miss$attribute)
+  if(base::nrow(df_miss)>0){
+    message("Beginning search for missing comid-attribute pairings.")
+    # The unique comid-attr combo:
+    df_miss$uniq_cmbo <- proc.attr.hydfab:::uniq_id_loc_attr(df_miss$comid,
+                                                             df_miss$attribute)
+
+
+
+    # Group by 'comid' and aggregate the sets of 'attribute' values
+    grouped <- df_miss %>%
+      dplyr::group_by(comid) %>%
+      dplyr::summarize(attribute = list(unique(attribute))) %>%
+      dplyr::ungroup()
+
+    # Convert the lists to characters to make them hashable
+    grouped <- grouped %>%
+      dplyr::mutate(attribute = sapply(attribute, function(x) paste(sort(x), collapse = ",")))
+
+    # Find which 'comid' values share the same collections of 'attribute' values
+    shared_values <- grouped %>%
+      dplyr::group_by(attribute) %>%
+      dplyr::summarize(comid = list(comid)) %>%
+      dplyr::ungroup()
+    ############# Map needed attributes to names in menu #################
+    # Read in proc.attr.hydfab package's extdata describing attributes & data sources
+    dir_extdata <- system.file("extdata",package="proc.attr.hydfab")
+    path_attr_menu <- file.path(dir_extdata, "fs_attr_menu.yaml")
+    df_attr_menu <- yaml::read_yaml(path_attr_menu)
+
+    path_attr_src_types <- file.path(dir_extdata,"attr_source_types.yml")
+    df_attr_src_types <- yaml::read_yaml(path_attr_src_types)
+
+    # Identify which attributes correspond to which datasets using the menu
+    # by looping over each unique grouping of comid-attribute pairings
+    filter_df <- df_miss
+    ls_have_uniq_cmbo <- list()
+    for(row in 1:nrow(shared_values)){
+      sub_grp <- shared_values[row,]
+      comids <- sub_grp['comid'][[1]][[1]]
+      attrs <- strsplit(sub_grp['attribute'][[1]],',')[[1]]
+      #attrs <- df_miss$attribute
+      vars_ls <- list()
+      df_miss$dl_dataset <- NA
+      for (dl_ds in names(df_attr_menu)){
+        sub_df_attr_menu <- df_attr_menu[[dl_ds]]
+        sub_attrs <- names(unlist(sub_df_attr_menu))
+        ls_locs_df <- base::lapply(attrs, function(a)
+          base::length(base::grep(a, sub_attrs))!=0 ) |>
+          base::unlist()
+        idxs_this_dl_ds <- base::which(ls_locs_df==TRUE)
+        attrs_have <- attrs[idxs_this_dl_ds]
+
+        if(length(idxs_this_dl_ds)>0){
+          print(glue::glue("Found attributes from {dl_ds} dataset"))
+          df_miss$dl_dataset[which(df_miss$attribute %in% attrs_have)] <-
+            unlist(df_attr_src_types[[dl_ds]])[["name"]]
+          vars_ls[[unlist(df_attr_src_types[[dl_ds]])[["name"]]]] <- attrs_have
+        } else {
+          print(glue::glue("No attributes correspond to {dl_ds} dataset"))
+        }
+      }
+
+      # Check to make sure all attrs identified
+      if(base::any(base::is.na(df_miss$dl_dataset))){
+        unk_attrs <- df_miss$attribute[which(is.na(df_miss$dl_dataset))]
+        str_unk_attrs <- paste0(unk_attrs, collapse = ", ")
+        warning(glue::glue("Could not identify datasets for the following attributes:
+                       \n{str_unk_attrs}"))
+      }
+      ############# Retrieve missing attributes #################
+      # Perform retrieval using these variables that should be available
+      Retr_Params$vars <- vars_ls
+
+      # Acquire the needed variables
+      message(glue::glue(
+        "Retrieving {length(unlist(vars_ls))} attributes for {length(comids)} total comids.
+        This may take a while."))
+      dt_all <- proc.attr.hydfab::proc_attr_mlti_wrap(comids=comids,
+                                            Retr_Params=Retr_Params,
+                                            lyrs="network",overwrite=FALSE)
+
+      # The unique-id key for identifying unique location-attribute combinations
+      ls_have_uniq_cmbo[[row]] <- proc.attr.hydfab:::uniq_id_loc_attr(dt_all$featureID,
+                                                   dt_all$attribute)
+
+
+      if(base::any(base::is.na(dt_all$value))){
+        idxs_na <- which(is.na(dt_all$value))
+        comids_problem <- paste0(dt_all$featureID[idxs_na],collapse=', ')
+        stop(base::paste0("PROBLEM: The following comids hold NA values:
+                          \n{comids_problem}"))
+      }
+    }
+
+    # Identify which items from the missing list may now be removed
+    have_uniq_cmbo <- base::unlist(ls_have_uniq_cmbo) # Data now available
+    df_still_missing <- df_miss %>%
+      dplyr::filter(!uniq_cmbo %in% have_uniq_cmbo)
+
+    if (base::nrow(df_still_missing)== 0){
+      message("Successfully found all missing attributes!")
+    } else {
+      message("Some missing comid-attribute pairings still remain")
+    }
+
+    # Write the updated missing attributes file
+    write.csv(df_still_missing,path_missing_attrs,row.names = FALSE)
+  } else {
+    message("No missing comid-attribute pairings.")
+  }
+}
