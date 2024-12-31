@@ -161,7 +161,7 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
 
     elif read_type == 'filename': # Read based on comid being located in the parquet filename
         matching_files = [file for file in Path(dir_db_attrs).iterdir() \
-                          if file.is_file() and any(sub in file.name for sub in comids_resp)]
+                          if file.is_file() and any(f'_{sub}_' in file.name for sub in comids_resp)]
         attr_ddf_subloc = dd.read_parquet(matching_files, storage_options=storage_options)
     else:
         raise ValueError(f"Unrecognized read_type provided in fs_read_attr_comid: {read_type}")
