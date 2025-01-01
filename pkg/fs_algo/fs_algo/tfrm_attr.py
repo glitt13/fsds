@@ -323,6 +323,8 @@ def _id_need_tfrm_attrs(all_attr_ddf: dd.DataFrame,
         Recommended to use transformation function identifier, ls_all_cstm_funcs, a standardized,
           descriptive format that isn't vulnerable to custom variable names that happen to be the same
           name for different things (the case of ls_all_cstm_vars)
+
+        KEY ASSUMPTION: ONLY WORKS FOR A SINGLE COMID!!
     :param all_attr_ddf: All the attributes of interest for a location(s)
     :type all_attr_ddf: dd.DataFrame
     :param ls_all_cstm_vars: The custom variable names to be created from transformations, defaults to None
@@ -406,7 +408,10 @@ def write_missing_attrs(attrs_retr_sub:list, dir_db_attrs: str | os.PathLike,
 
     df_need_attrs_comid = pd.DataFrame({'comid' : comid,
                                         'attribute' : attrs_retr_sub,
-                                        'config_file' : Path(path_tfrm_cfig).name})
+                                        'config_file' : Path(path_tfrm_cfig).name,
+                                        'uniq_cmbo':np.nan,
+                                        'dl_dataset':np.nan
+                                        })
 
     df_need_attrs_comid.to_csv(path_need_attrs, mode = 'a',
                                 header= not path_need_attrs.exists(),

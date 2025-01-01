@@ -26,6 +26,8 @@ import itertools
 from collections import ChainMap
 import subprocess
 import numpy as np
+import os
+import re
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'process the algorithm config file')
@@ -109,16 +111,66 @@ if __name__ == "__main__":
     # vars: The dict of attributes to aggregate for each custom variable name
     dict_retr_vars = dict_cstm_vars_funcs.get('dict_retr_vars')
 
+    #%% BEGIN OVERHAUL
+    # all the variables of interest
+    all_retr_vars = list(set([vv for k, v in dict_retr_vars.items() for vv in v]))
+
+    # Read in available comid data of interest (all comids + attributes)
+    df_attr_all = fsate.fs_read_attr_comid(dir_db_attrs=dir_db_attrs,
+                                              comids_resp=comids,
+                                              attrs_sel=all_retr_vars,_s3=None,
+                                               storage_options=None,
+                                               read_type='filename',reindex=True)
+    # Create unique combination of comid-attribute pairings:
+    df_attr_all['uniq_cmbo'] = f"{df_attr_all['featureID']}_{df_attr_all['attribute']}"
+    
+    # ALL NEEDED UNIQUE COMBOS:
+    must_have_uniq_cmbo = [f"{comid}_{var}" for comid in comids for var in all_retr_vars]
+
+    # Determine which comid-attribute pairings missing using unique key
+    uniq_cmbo_absent = [item for item in must_have_uniq_cmbo if item not in df_attr_all['uniq_cmbo'].values]
+    
+    # Split items not in series back into comids and attributes
+    df_missing = pd.DataFrame({'comid':[x.split('_')[0] for x in uniq_cmbo_absent],
+                               'attribute': [re.sub(r'^\d+_','',x) for x in uniq_cmbo_absent],
+                               'config_file' : Path(path_tfrm_cfig).name,
+                                'uniq_cmbo':np.nan,
+                                'dl_dataset':np.nan
+                              }).drop_duplicates().reset_index()
+    
+    # Save this to file, appending if missing data already exist.
+    df_missing.to_csv(path_need_attrs, mode = 'a',
+                                header= not path_need_attrs.exists(),
+                                index=False)
+    print(f"Wrote needed comid-attributes to \n{path_need_attrs}")
+
+        #%% Run R script to search for needed data. 
+    # The R script reads in the path_need_attrs csv and searches for these data
+    if df_missing.shape[0]>0: # Some data were missing
+        home_dir = Path.home()
+        path_fs_attrs_miss = fio.get('path_fs_attrs_miss').format(home_dir = home_dir)
+
+        if path_fs_attrs_miss:
+            args = [str(path_attr_config)]
+            try:
+                print(f"Attempting to retrieve missing attributes using {Path(path_fs_attrs_miss).name}")
+                result = subprocess.run(['Rscript', path_fs_attrs_miss] + args, capture_output=True, text=True)
+                print(result.stdout) # Print the output from the Rscript
+                print(result.stderr)  # If there's any error output
+            except:
+                print(f"Could not run the Rscript {path_fs_attrs_miss}." +
+                        "\nEnsure proc.attr.hydfab R package installed and appropriate path to fs_attrs_miss.R")
+###############################################################################
+ #%% Run the standard processing of attribute transformation:
     for comid in comids:
-        #%% IDENTIFY NEEDED ATTRIBUTES/FUNCTIONS
-        # ALL attributes for a given comid, read using a file
-        all_attr_ddf = fta._subset_ddf_parquet_by_comid(dir_db_attrs,
-                                        fp_struct=str(comid))
+        ddf_loc_attrs=fta._subset_ddf_parquet_by_comid(dir_db_attrs,
+                                        fp_struct='_'+str(comid)+'_')
+        
 
         # Identify the needed functions based on querying the comid's attr data's 'data_source' column
         #  Note the custom attributes used the function string as the 'data_source'
         dict_need_vars_funcs = fta._id_need_tfrm_attrs(
-                                all_attr_ddf=all_attr_ddf,
+                                all_attr_ddf=ddf_loc_attrs,
                                 ls_all_cstm_vars=None,
                                 ls_all_cstm_funcs = ls_all_cstm_funcs,
                                 overwrite_tfrm=overwrite_tfrm)
@@ -152,7 +204,7 @@ if __name__ == "__main__":
                                     dir_db_attrs=dir_db_attrs,
                                     comid = comid, 
                                     path_tfrm_cfig = path_tfrm_cfig)
-                #  Run the Rscript for acquiring missing attributes, then retry attribute retrieval
+                #  Re-run the Rscript for acquiring missing attributes, then retry attribute retrieval
                 if fio.get('path_fs_attrs_miss'):
                     # Path to the Rscript, requires proc.attr.hydfab package to be installed!
                     home_dir = Path.home()
@@ -172,7 +224,7 @@ if __name__ == "__main__":
                 continue
 
             # Transform: subset data to variables and compute new attribute
-            attr_val = fta._sub_tform_attr_ddf(all_attr_ddf=all_attr_ddf, 
+            attr_val = fta._sub_tform_attr_ddf(all_attr_ddf=ddf_loc_attrs, 
                         retr_vars=attrs_retr_sub, func = func_tfrm)
             
             if any(pd.isnull(attr_val)):
@@ -181,7 +233,7 @@ if __name__ == "__main__":
                                   f"Inspect {new_var} with comid {comid}")
 
             # Populate new values in the new dataframe
-            new_df = fta._gen_tform_df(all_attr_ddf=all_attr_ddf, 
+            new_df = fta._gen_tform_df(all_attr_ddf=ddf_loc_attrs, 
                                 new_var_id=new_var,
                                 attr_val=attr_val,
                                 tform_type = dict_cstm_func.get(new_var),
