@@ -1571,7 +1571,45 @@ fs_attrs_miss_wrap <- function(path_attr_config){
   Retr_Params <- proc.attr.hydfab::attr_cfig_parse(path_attr_config = path_attr_config)
 
   path_missing_attrs <- proc.attr.hydfab::std_miss_path(Retr_Params$paths$dir_db_attrs)
-  df_miss <- utils::read.csv(path_missing_attrs)
+  df_miss <- utils::read.csv(path_missing_attrs,header=TRUE, check.names = TRUE)#,col.names = c("X","comid"	attribute	config_file	uniq_cmbo	dl_dataset)
+
+  bool_chck_class_comid <- df_miss[['comid']][1] %>% as.character() %>%
+    as.numeric() %>% suppressWarnings() %>% is.na() # Is the comid non-numeric?
+  bool_chck_if_X_col <- df_miss %>% colnames() %>% grepl("X",.) %>% any()
+  bool_chck_X_loc <- df_miss %>% colnames() %>% grep("X", .) == 1
+
+  all_tests_df_miss_fmt <- c(bool_chck_class_comid,bool_chck_if_X_col,bool_chck_X_loc)
+  if(base::all(all_tests_df_miss_fmt)){
+    # We know 'X' is the first colname, so it's likely that R couldn't read
+    #. the indices (duplicate vals when written in python?)
+    cols <- colnames(df_miss)
+    # The comid column is likely labeled as 'X'
+    if ('uniq_cmbo' %in% cols){
+      new_cols <-  cols[!grepl("uniq_cmbo",cols)]
+    } else {
+      new_cols <- cols
+    }
+
+    new_cols <- new_cols[!grepl("X",new_cols)]
+    sub_df_miss <- df_miss[,1:(ncol(df_miss)-1)]
+    names(sub_df_miss) <- new_cols
+
+    last_col <- cols[length(cols)]
+    # and the last col (e.g. dl_dataset) may become scrambled with the 'NA' column
+    if(all(is.na(sub_df_miss[last_col])) && any(is.na(colnames(sub_df_miss)))){
+      idx_col_na <- which(is.na(colnames(sub_df_miss)))
+      sub_df_miss[last_col] <- sub_df_miss[,idx_col_na]
+      sub_df_miss[,idx_col_na] <- NULL
+    }
+    df_miss <- sub_df_miss
+  } else if (any(grepl("index",colnames(df_miss))) && !bool_chck_class_comid &&
+             !bool_chck_if_X_col){
+    # Remove the index column
+    df_miss['index'] <- NULL
+  } else if (bool_chck_class_comid){
+    stop("THERE MAY BE A FORMAT ERROR WITH THE CORRECTION. MAKE SURE LOGIC IS APPROPRIATE HERE.")
+  }
+
   if(base::nrow(df_miss)>0){
     message("Beginning search for missing comid-attribute pairings.")
     df_miss$uniq_cmbo <- paste0(df_miss$comid,df_miss$attribute) # The unique comid-attr combo
