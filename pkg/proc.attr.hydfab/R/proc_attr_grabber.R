@@ -287,7 +287,7 @@ proc_attr_usgs_nhd <- function(comid,usgs_vars){
       dplyr::select(dplyr::all_of(c("COMID", var_id))) %>%
       dplyr::filter(COMID %in% comid) %>%
       dplyr::collect() %>%
-      suppress_warnings()
+      suppressWarnings()
   }))
 
   # Combine all the results
