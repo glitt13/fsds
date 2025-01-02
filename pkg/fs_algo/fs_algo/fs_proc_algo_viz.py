@@ -119,7 +119,7 @@ if __name__ == "__main__":
         # TODO make test to see if comid and gage_id truly match as expected
         df_ids = pd.DataFrame({'comid':dat_resp['comid'].values,
                        'gage_id':dat_resp['gage_id'].values})
-        gdf_comid = pd.merge(gdf_comid,df_ids, on = 'comid')
+        gdf_comid = gdf_comid.merge(df_ids, on = 'comid', how = 'inner').drop_duplicates()
         # TODO allow secondary option where featureSource and featureIDs already provided, not COMID 
 
         #%%  Read in predictor variable data (aka basin attributes) 
@@ -132,20 +132,30 @@ if __name__ == "__main__":
 
         #%% Characterize dataset correlations & principal components:
         # Attribute correlation matrix (writes to file)
-        fig_corr_mat = fsate.plot_corr_mat_save_wrap(df_X=df_attr_wide,
-                                      title=f'Correlation matrix from {ds} dataset',
-                                      dir_out_viz_base=dir_out_viz_base,
-                                      ds=ds)
-        
+        if df_attr_wide.isna().any().any():
+            df_attr_wide_dropna = df_attr_wide.dropna()
+            print(f"Dropping {df_attr_wide.shape[0] - df_attr_wide_dropna.shape[0]} total locations from analysis \
+            for correlation/PCA assessment, reducing dataset to {df_attr_wide_dropna.shape[0]} points")
+            frac_na = (df_attr_wide.shape[0] - df_attr_wide_dropna.shape[0])/df_attr_wide.shape[0]
+            if frac_na > 0.1:
+                raise UserWarning(f"!!!!{np.round(frac_na*100,1)}%  of data are NA values and will be discarded before training/testing!!!!")
+
+        else:
+            df_attr_wide_dropna = df_attr_wide.copy()
+        fig_corr_mat = fsate.plot_corr_mat_save_wrap(df_X=df_attr_wide_dropna,
+                                    title=f'Correlation matrix from {ds} dataset',
+                                    dir_out_viz_base=dir_out_viz_base,
+                                    ds=ds)
+    
         # Attribute correlation results based on a correlation threshold (writes to file)
-        df_corr_rslt = fsate.corr_thr_write_table_wrap(df_X=df_attr_wide,
+        df_corr_rslt = fsate.corr_thr_write_table_wrap(df_X=df_attr_wide_dropna,
                                                        dir_out_anlys_base=dir_out_anlys_base,
                                                        ds = ds,
                                                        corr_thr=0.8)
         
 
         # Principal component analysis
-        pca_rslt = fsate.plot_pca_save_wrap(df_X=df_attr_wide, 
+        pca_rslt = fsate.plot_pca_save_wrap(df_X=df_attr_wide_dropna, 
                         dir_out_viz_base=dir_out_viz_base,
                         ds = ds, 
                         std_scale=True # Apply the StandardScaler.
@@ -161,7 +171,7 @@ if __name__ == "__main__":
             df_metr_resp = pd.DataFrame({'comid': dat_resp['comid'],
                                         metr : dat_resp[metr].data})
             # Join attribute data and response data
-            df_pred_resp = df_metr_resp.merge(df_attr_wide, left_on = 'comid', right_on = 'featureID')
+            df_pred_resp = df_metr_resp.merge(df_attr_wide_dropna, left_on = 'comid', right_on = 'featureID')
 
             # TODO may need to add additional distinguishing strings to dataset_id, e.g. in cases of probabilistic simulation
 
