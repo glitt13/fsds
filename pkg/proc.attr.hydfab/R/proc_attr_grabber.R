@@ -1090,13 +1090,14 @@ proc_attr_gageids <- function(gage_ids,featureSource,featureID,Retr_Params,
   df_map_comid_gageid <- base::data.frame(featureID=as.character(just_comids),
                                           gage_id=as.character(names(ls_comid)))
   dt_site_feat_retr$featureID <- as.character(dt_site_feat_retr$featureID)
-  dt_site_feat <- base::merge(dt_site_feat_retr,df_map_comid_gageid,by="featureID")
+  non_dupe_dt_site_feat_retr <- dt_site_feat_retr %>% dplyr::distinct()
+  dt_site_feat <- base::merge(non_dupe_dt_site_feat_retr,df_map_comid_gageid,by="featureID")
 
   if(any(!names(ls_comid) %in% dt_site_feat$gage_id)){
     gage_ids_missing <- base::names(ls_comid)[base::which(
         !base::names(ls_comid) %in% dt_site_feat$gage_id)]
     warning(glue::glue("The following gage_id values did not return a comid:\n
-                       {gage_ids_missing}"))
+                       {paste0(gage_ids_missing,collapse=',')}"))
   }
 
   return(dt_site_feat)
