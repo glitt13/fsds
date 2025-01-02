@@ -151,4 +151,4 @@ dependencies:
       - urllib3==2.2.3
       - yarl==1.15.2
       - zarr==2.18.2
-prefix: /opt/anaconda3/envs/py312_fsds
+prefix: C:\Users\SoroushSorourian\anaconda3\envs\rafts_env
