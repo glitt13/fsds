@@ -16,7 +16,7 @@
 
 # Read in attribute config file and extract the following:
 library(proc.attr.hydfab)
-
+library(dplyr)
 cmd_args <- commandArgs("trailingOnly" = TRUE)
 
 if(base::length(cmd_args)!=1){
@@ -28,5 +28,5 @@ path_attr_config <- cmd_args[1] # "~/git/formulation-selector/scripts/eval_inges
 
 # Run the wrapper function to read in missing comid-attribute pairings and search
 #  for those data in existing databases.
-proc.attr.hydfab::fs_attrs_miss_wrap(path_attr_config)
+proc.attr.hydfab::fs_attrs_miss_mlti_wrap(path_attr_config)
 

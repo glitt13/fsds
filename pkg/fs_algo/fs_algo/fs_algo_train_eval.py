@@ -153,15 +153,16 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
         # TODO  Setup the s3fs filesystem that will be used, with xarray to open the parquet files
         #_s3 = s3fs.S3FileSystem(anon=True)
 
+    # ------------------- Subset based on comids of interest ------------------
     if read_type == 'all': # Considering all parquet files inside directory
         # Read attribute data acquired using proc.attr.hydfab R package
         all_attr_ddf = dd.read_parquet(dir_db_attrs, storage_options = storage_options)
-        # Subset based on comids of interest
+        attr_df_sub = attr_ddf_sub.compute()
         attr_ddf_subloc = all_attr_ddf[all_attr_ddf['featureID'].isin(comids_resp)]
 
     elif read_type == 'filename': # Read based on comid being located in the parquet filename
         matching_files = [file for file in Path(dir_db_attrs).iterdir() \
-                          if file.is_file() and any(sub in file.name for sub in comids_resp)]
+                          if file.is_file() and any(f'_{sub}_' in file.name for sub in comids_resp)]
         attr_ddf_subloc = dd.read_parquet(matching_files, storage_options=storage_options)
     else:
         raise ValueError(f"Unrecognized read_type provided in fs_read_attr_comid: {read_type}")
@@ -170,7 +171,7 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
         warnings.warn(f'None of the provided featureIDs exist in {dir_db_attrs}: \
                       \n {", ".join(attrs_sel)} ', UserWarning)
     
-    # Subset based on attributes of interest
+    # ------------------- Subset based on attributes of interest ------------------
     if attrs_sel == 'all':
         attrs_sel = attr_ddf_subloc['attribute'].unique().compute()
 
@@ -181,7 +182,7 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
     if attr_df_sub.shape[0] == 0:
         warnings.warn(f'The provided attributes do not exist with the retrieved featureIDs : \
                         \n {",".join(attrs_sel)}',UserWarning)
-    # Remove any duplicates
+    # ------------------- Remove any duplicates & run checks -------------------
     attr_df_sub = _check_attr_rm_dupes(attr_df=attr_df_sub)
 
     # Run check that all variables are present across all basins

@@ -22,6 +22,8 @@ library(yaml)
 library(ncdf4)
 library(proc.attr.hydfab)
 library(glue)
+library(future)
+library(future.apply)
 
 # TODO is AWS_NO_SIGN_REQUEST necessary??
 # Sys.setenv(AWS_NO_SIGN_REQUEST="YES")
@@ -51,12 +53,16 @@ dt_comids <- proc.attr.hydfab:::grab_attrs_datasets_fs_wrap(Retr_Params,overwrit
 
 # --------------------------- Compile attributes --------------------------- #
 # Demonstration of how to retrieve attributes/comids that exist inside dir_db_attrs:
-# The comids of interest
-comids <- dt_comids$featureID %>% base::unname() %>% base::unlist()
+demo_example <- FALSE
+if (demo_example){
+  # The comids of interest
+  comids <- dt_comids$featureID %>% base::unname() %>% base::unlist()
 
-# The attribute variables of interest
-vars <- Retr_Params$vars %>% base::unlist() %>% base::unname()
+  # The attribute variables of interest
+  vars <- Retr_Params$vars %>% base::unlist() %>% base::unname()
 
-dat_all_attrs <- proc.attr.hydfab::retrieve_attr_exst(comids, vars,
-                                                      Retr_Params$paths$dir_db_attrs)
-base::rm(dat_all_attrs)
+  dat_all_attrs <- proc.attr.hydfab::retrieve_attr_exst(comids, vars,
+                                                        Retr_Params$paths$dir_db_attrs)
+  base::rm(dat_all_attrs)
+
+}

@@ -508,6 +508,10 @@ testthat::test_that("proc_attr_exst_wrap", {
                          dir.exists(file.path(new_dir,'newone')))
 })
 
-
-
-
+# TODO unit testing for fs_attrs_miss_wrap()
+# testthat::test_that("fs_attrs_miss_wrap",{
+#   path_attr_config <- file.path(dir_base,"xssa_attr_config_all_vars_avail.yaml")
+#   rslt <- proc.attr.hydfab::fs_attrs_miss_wrap(path_attr_config)
+#
+#
+# })
