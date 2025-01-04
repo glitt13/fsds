@@ -644,6 +644,58 @@ def find_common_comid(dict_gdf_comids:Dict[str,gpd.GeoDataFrame], column='comid'
     common_comid = list(common_comid)
     return common_comid
 
+def combine_resp_gdf_comid_wrap(dir_std_base:str|os.PathLike,ds:str,
+                          attr_config:dict)->dict:
+    """Standardize the response variable and geodataframe/comid retrieval for a single dataset in a wrapper function
+
+    Removes data points from consideration if no comid could be found. Makes the gdf and response data consistent.
+
+    :param dir_std_base: The directory containing the standardized dataset generated from `fs_proc`
+    :type dir_std_base: str | os.PathLike
+    :param ds:  The unique dataset identifier
+    :type ds: str
+    :param attr_config: configuration data generated from the attribute configuration file
+    :type attr_config: dict
+    :return: dict of the response xarray dataset `'dat_resp'`,
+      and the geodataframe with comids & coordinates `'gdf_comid'`
+    :rtype: dict
+    """
+
+    dat_resp = _open_response_data_fs(dir_std_base,ds)
+
+    # %% COMID retrieval and assignment to response variable's coordinate
+    [featureSource,featureID] = _find_feat_srce_id(dat_resp,attr_config) # e.g. ['nwissite','USGS-{gage_id}']
+    # Grab the comid and associated coords/geodataframe 
+    gdf_comid = fs_retr_nhdp_comids_geom(featureSource=featureSource,
+                                                featureID=featureID,
+                                                gage_ids=dat_resp['gage_id'].values)
+    # Ensure the original identifier gage_id matches up to the coords
+    gdf_comid['gage_id'] = dat_resp['gage_id']
+ 
+
+    # --- response data identifier alignment with comids & na removal --- #
+    dat_resp = dat_resp.assign_coords(comid = gdf_comid['comid'].values)
+    idxs_na_comid = list(np.where(gdf_comid['comid'].isna())[0])
+    gage_id_mask = ~np.isin(np.arange(len(dat_resp['gage_id'])),idxs_na_comid)
+    if len(idxs_na_comid) > 0:
+        gage_ids_missing = dat_resp['gage_id'].isel(gage_id=~gage_id_mask).values
+        print(f"A total of {len(idxs_na_comid)} returned comids are NA values. \
+               \nRemoving the following gage_ids from dataset: \
+              \n{gage_ids_missing}")
+        # Remove the unknown comids now that they've been matched up to the original dims in dat_resp:
+        dat_resp = dat_resp.isel(gage_id=gage_id_mask)# remove NA vals from gage_id coord
+        dat_resp = dat_resp.isel(comid=gage_id_mask) # remove NA vals from comid coord
+    
+    gdf_comid = gdf_comid.drop_duplicates().dropna()
+    if any(gdf_comid['comid'].duplicated()):
+        print("Note that some duplicated comids found in dataset based on initial location identifier, gage_id")
+    gdf_comid['dataset'] = ds 
+
+
+    dict_resp_gdf = dict({'dat_resp':dat_resp,
+                        'gdf_comid': gdf_comid})
+    return(dict_resp_gdf)
+
 def split_train_test_comid_wrap(dir_std_base:str|os.PathLike, 
                 datasets:list, attr_config:dict,
                 comid_col='comid', test_size:float=0.3,
@@ -672,26 +724,28 @@ def split_train_test_comid_wrap(dir_std_base:str|os.PathLike,
         'sub_train_ids': the comids corresponding to training
     :rtype: dict
     """
-
     dict_gdf_comids = dict()
     for ds in datasets:
-        dat_resp = _open_response_data_fs(dir_std_base,ds)
 
-        [featureSource,featureID] = _find_feat_srce_id(dat_resp,attr_config) 
+        # Generate the geodatframe in a standard format
+        dict_resp_gdf = combine_resp_gdf_comid_wrap(dir_std_base,ds,attr_config )
+        # dat_resp = _open_response_data_fs(dir_std_base,ds)
 
-        gdf_comid = fs_retr_nhdp_comids_geom(featureSource=featureSource,
-                                            featureID=featureID,
-                                            gage_ids=dat_resp['gage_id'].values)
-        gdf_comid['dataset'] = ds        
-        dict_gdf_comids[ds] = gdf_comid
+        # [featureSource,featureID] = _find_feat_srce_id(dat_resp,attr_config) 
+
+        # gdf_comid = fs_retr_nhdp_comids_geom(featureSource=featureSource,
+        #                                     featureID=featureID,
+        #                                     gage_ids=dat_resp['gage_id'].values)
+        # gdf_comid['dataset'] = ds        
+        dict_gdf_comids[ds] = dict_resp_gdf['gdf_comid']
 
     if len(datasets) > 1:
         common_comid = find_common_comid(dict_gdf_comids, column = comid_col)
     else:
         common_comid = dict_gdf_comids[ds]['comid'].tolist()
     
-    # Create the train/test split
-    df_common_comids = pd.DataFrame({'comid':common_comid}).dropna()
+    # Create the train/test split() of comids. Note that duplicates are possible and must be removed!
+    df_common_comids = pd.DataFrame({'comid':common_comid}).dropna().drop_duplicates()
     train_ids, test_ids = train_test_split(df_common_comids, test_size=test_size, random_state=random_state)
 
     # Compile results into a standard structure
@@ -743,7 +797,7 @@ class AlgoTrainEval:
         self.dir_out_alg_ds = dir_out_alg_ds
         self.metric = metr
         self.test_size = test_size
-        self.test_ids = test_ids
+        self.test_ids = test_ids # No guarantee these remain in the appropriate order
         self.test_id_col = test_id_col
         self.rs = rs
         self.dataset_id = dataset_id
@@ -784,11 +838,12 @@ class AlgoTrainEval:
                 \n   !!!!!!!!!!!!!!!!!!!",UserWarning)
                 
         if self.test_ids is not None:
+            # The Truth is in the indices: e.g. `self.df` shares the same indicise as `self.test_ids`` 
             # Use the manually provided comids for testing, then the remaining data for training
             print("Using the custom test comids, and letting all remaining comids be used for training.")
-            df_sub_test = self.df[self.df[self.test_id_col].isin(self.test_ids)].dropna(subset=self.attrs + [self.metric])
-            df_sub_train = self.df[~self.df[self.test_id_col].isin(self.test_ids)].dropna(subset=self.attrs + [self.metric])
-            # Assign
+            df_sub_test = self.df.loc[self.test_ids.index]#self.df[self.df[self.test_id_col].isin(self.test_ids)].dropna(subset=self.attrs + [self.metric])
+            df_sub_train = self.df.loc[~self.df.index.isin(df_sub_test.index)]#self.df[~self.df[self.test_id_col].isin(self.test_ids)].dropna(subset=self.attrs + [self.metric])
+            # Assign class objects
             self.y_test = df_sub_test[self.metric]
             self.y_train = df_sub_train[self.metric]
             self.X_test = df_sub_test[self.attrs]
