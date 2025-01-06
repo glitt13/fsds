@@ -1739,6 +1739,28 @@ def std_regr_pred_obs_path(dir_out_viz_base:str|os.PathLike, ds:str,
     path_regr_pred_plot.parent.mkdir(parents=True,exist_ok=True)
     return path_regr_pred_plot
 
+def _estimate_decimals_for_plotting(val:float)-> int:
+    """Determine how many decimals should be used when rounding
+    :param val: The value of interest for rounding
+    :type val: np.float
+    :return: The number of decimal places to round to
+    :rtype: int
+    """
+
+    fmt_positional = np.format_float_positional(val)
+    round_decimals = 2
+    if fmt_positional[0:2] == '0.':
+        sub_fmt_positional = fmt_positional[2:]
+        count = 0
+        for char in sub_fmt_positional:
+            if char == '0':
+                count += 1
+            else:
+                round_decimals = count+3
+                break
+
+    return round_decimals
+
 def plot_pred_vs_obs_regr(y_pred: np.ndarray, y_obs: np.ndarray, ds:str, metr:str)->Figure:
     """Plot the observed vs. predicted module performance
 
@@ -1753,9 +1775,20 @@ def plot_pred_vs_obs_regr(y_pred: np.ndarray, y_obs: np.ndarray, ds:str, metr:st
     :return: THe predicted vs observed regression plot
     :rtype: Figure
     """
+    max_val = np.max([y_pred,y_obs])
+    tot_rnd_max = _estimate_decimals_for_plotting(max_val)
+    min_val = np.min([y_pred,y_obs])
+    tot_rnd_min = _estimate_decimals_for_plotting(min_val)
+    tot_rnd = np.max([tot_rnd_max,tot_rnd_min])
+    min_val_rnd = np.round(np.min([min_val,0]),tot_rnd)
+    max_val_rnd = np.round(max_val,tot_rnd)
+    min_vals = (min_val_rnd,min_val_rnd)
+    max_vals = (max_val_rnd,max_val_rnd)
+
+
     # Adapted from plot in bolotinl's fs_perf_viz.py
-    plt.scatter(x=y_obs,y=y_pred)
-    plt.axline((0, 0), (1, 1), color='black', linestyle='--')
+    plt.scatter(x=y_obs,y=y_pred,alpha=0.3)
+    plt.axline(min_vals, max_vals, color='black', linestyle='--')
     plt.ylabel('Predicted {}'.format(metr))
     plt.xlabel('Actual {}'.format(metr))
     plt.title('Observed vs. RaFTS Predicted Performance: {}'.format(ds))
