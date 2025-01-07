@@ -7,6 +7,7 @@ import ast
 import numpy as np
 import geopandas as gpd
 from shapely import wkt
+import matplotlib.pyplot as plt
 """Workflow script to train algorithms on catchment attribute data for predicting
     formulation metrics and/or hydrologic signatures.
 
@@ -142,7 +143,7 @@ if __name__ == "__main__":
                                     title=f'Correlation matrix from {ds} dataset',
                                     dir_out_viz_base=dir_out_viz_base,
                                     ds=ds)
-    
+        plt.clf()
         # Attribute correlation results based on a correlation threshold (writes to file)
         df_corr_rslt = fsate.corr_thr_write_table_wrap(df_X=df_attr_wide_dropna,
                                                        dir_out_anlys_base=dir_out_anlys_base,
@@ -156,7 +157,7 @@ if __name__ == "__main__":
                         ds = ds, 
                         std_scale=True # Apply the StandardScaler.
                         )
-
+        plt.clf()
         # %% Train, test, and evaluate
         rslt_eval = dict()
         for metr in metrics:
@@ -210,7 +211,7 @@ if __name__ == "__main__":
             df_X, y_all = train_eval.all_X_all_y()
 
             if make_plots:
-                # See if random forest may be extrained from the AlgoTrainEval class object:
+                # See if random forest was trained in the AlgoTrainEval class object:
                 rfr = fsate._extr_rf_algo(train_eval)
                 if rfr: # Generate & save the feature importance plot
                     fsate.save_feat_imp_fig_wrap(rfr=rfr,
