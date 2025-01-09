@@ -590,7 +590,13 @@ io_attr_dat <- function(dt_new_dat,path_attrs,
   }
 
   if(logl_write_parq){ # Write update to file
-    arrow::write_parquet(dt_cmbo,path_attrs)
+    try_to_write <- try(arrow::write_parquet(dt_cmbo,sink=path_attrs))
+    if("try-error" %in% class(try_to_write)){
+      # Try deleting the file first, then writing it.
+      # We can do this because of merge.data.table(dt_exist,dt_new_dat)
+      base::file.remove(path_attrs)
+      arrow::write_parquet(dt_cmbo,path_attrs)
+    }
   }
   return(dt_cmbo)
 }
@@ -676,9 +682,9 @@ proc_attr_mlti_wrap <- function(comids, Retr_Params,lyrs="network",
       sub_dt_new_loc <- dt_new_dat[dt_new_dat$featureID==new_comid,]
       path_new_comid <- proc.attr.hydfab::std_path_attrs(comid=new_comid,
                             dir_db_attrs=Retr_Params$paths$dir_db_attrs)
-      if(base::file.exists(path_new_comid)){
-        warning(glue::glue("Problem with logic\n{path_new_comid} should not exist"))
-      }
+      # if(base::file.exists(path_new_comid)){
+      #   warning(glue::glue("Problem with logic\n{path_new_comid} should not exist"))
+      # }
       # ------------------- Write data to file -------------------
       dat_cmbo_comid <- proc.attr.hydfab::io_attr_dat(dt_new_dat=sub_dt_new_loc,
                                                       path_attrs=path_new_comid)
