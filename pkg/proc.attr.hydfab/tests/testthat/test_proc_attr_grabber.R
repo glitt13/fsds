@@ -13,7 +13,7 @@ suppressPackageStartupMessages(library(dplyr,quietly=TRUE))
 suppressPackageStartupMessages(library(arrow,quietly=TRUE))
 suppressPackageStartupMessages(library(hydrofabric,quietly=TRUE))
 suppressPackageStartupMessages(library(data.table,quietly=TRUE))
-
+suppressPackageStartupMessages(library(fs,quietly=TRUE))
 options(arrow.unsafe_metadata = TRUE)
 # TODO establish a basic config file to read in for this functionality
 comid <- "18094981"#"02479560"#14138870# A small basin
@@ -66,7 +66,7 @@ ignore_some_old_broken_tests <- TRUE
 
 # ------------------ multi-comid attribute grabbing functions -----------------
 testthat::test_that("io_attr_dat",{
-  path_attr_exst <- file.path(dir_base,"attributes_pah","comid_1799897_attrs.parquet")
+  path_attr_exst <- file.path(dir_base,"attributes_pah","comid_1722317_attrs.parquet")
   df_expct <- arrow::open_dataset(path_attr_exst) %>% collect() %>%
     suppressWarnings()
   rslt <- proc.attr.hydfab::io_attr_dat(
@@ -83,7 +83,7 @@ testthat::test_that("io_attr_dat",{
     suppressWarnings()
 
   testthat::expect_identical(dim(rslt_cmbo),dim(rslt))
-
+  #fs::file_delete(path_attr_exst) # Delete the file we just created
 })
 
 testthat::test_that("retr_attr_new",{
@@ -203,14 +203,18 @@ testthat::test_that('proc_attr_gageids',{
     file.remove(path_meta_loc)
   }
 
+
+
   # test just usgs vars
   Retr_Params_usgs <- Retr_Params_ha <- Retr_Params
   Retr_Params_usgs$vars <- list(usgs_vars = usgs_vars)
+  Retr_Params_usgs$paths$dir_db_attrs <- file.path(Retr_Params$paths$dir_std_base,'../attributes_pah/')
   dt_comids <- proc.attr.hydfab::proc_attr_gageids(gage_ids=ls_fs_std$gage_ids[2],
                                       featureSource=ls_fs_std$featureSource,
                                       featureID=ls_fs_std$featureID,
                                       Retr_Params=Retr_Params_usgs,
-                                      lyrs="network",overwrite=FALSE)
+                                      lyrs="network",overwrite=FALSE) %>%
+                pkgcond::suppress_warnings()
   testthat::expect_identical(unique(dt_comids$gage_id),ls_fs_std$gage_ids[2])
   testthat::expect_true("data.frame" %in% class(dt_comids))
 
@@ -225,7 +229,8 @@ testthat::test_that('proc_attr_gageids',{
                                                    featureSource=ls_fs_std$featureSource,
                                                    featureID=ls_fs_std$featureID,
                                                    Retr_Params=Retr_Params_ha,
-                                                   lyrs="network",overwrite=FALSE)
+                                                   lyrs="network",overwrite=FALSE) %>%
+                  base::suppressWarnings()
   testthat::expect_true(all(unlist(unname(Retr_Params_ha$vars)) %in% dt_comids_ha$attribute))
 
   # TODO figure out what's wrong here. The confusion is that it works when calling the second time, but not the first
@@ -402,10 +407,13 @@ if (!ignore_some_old_broken_tests){
 }
 
 testthat::test_that("grab_attrs_datasets_fs_wrap", {
-
+  # COPY retrieve params stored in package into temp dir for standard processing
+  dir_attrs_pah <- file.path(Retr_Params$paths$dir_std_base,'../attributes_pah/')
+  fs::dir_copy(dir_attrs_pah, Retr_Params$paths$dir_db_attrs,overwrite = TRUE)
   ls_comids_all <- proc.attr.hydfab::grab_attrs_datasets_fs_wrap(Retr_Params,
                                                                lyrs="network",
-                                                               overwrite=FALSE)
+                                                               overwrite=FALSE) %>%
+    base::suppressWarnings()
   testthat::expect_equal(names(ls_comids_all), Retr_Params$datasets)
 
 
@@ -423,7 +431,8 @@ testthat::test_that("grab_attrs_datasets_fs_wrap", {
   testthat::expect_error(
     proc.attr.hydfab::grab_attrs_datasets_fs_wrap(Retr_Params_missing_meta,
                                                   lyrs="network",
-                                                  overwrite=FALSE),
+                                                  overwrite=FALSE) %>%
+      base::suppressWarnings(),
     regexp = "path_meta not fully defined")
 
   # Test that all datasets are processed
@@ -431,7 +440,8 @@ testthat::test_that("grab_attrs_datasets_fs_wrap", {
   Retr_Params_all_ds$datasets <- "all"
   ls_comids_all_ds <- proc.attr.hydfab::grab_attrs_datasets_fs_wrap(Retr_Params_all_ds,
                                                                       lyrs="network",
-                                                                      overwrite=FALSE)
+                                                                      overwrite=FALSE) %>%
+                        base::suppressWarnings()
   # When 'all' datasets requested, should have the same number retrieved
   testthat::expect_equal(length(ls_comids_all_ds),
                         length(list.files(Retr_Params_all_ds$paths$dir_std_base)))
@@ -487,7 +497,8 @@ testthat::test_that("proc_attr_exst_wrap", {
   ls_rslt <- proc.attr.hydfab::proc_attr_exst_wrap(
                                                    path_attrs=dir_db_attrs,
                                                    vars_ls=Retr_Params$vars,
-                                                   bucket_conn=NA)
+                                                   bucket_conn=NA) %>%
+              base::suppressWarnings()
   testthat::expect_true(all(names(ls_rslt) == c("dt_all","need_vars")))
   testthat::expect_type(ls_rslt,'list')
   testthat::expect_s3_class(ls_rslt$dt_all,'data.table')

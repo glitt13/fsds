@@ -157,7 +157,7 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
     if read_type == 'all': # Considering all parquet files inside directory
         # Read attribute data acquired using proc.attr.hydfab R package
         all_attr_ddf = dd.read_parquet(dir_db_attrs, storage_options = storage_options)
-        attr_df_sub = attr_ddf_sub.compute()
+        attr_df_sub = all_attr_ddf.compute()
         attr_ddf_subloc = all_attr_ddf[all_attr_ddf['featureID'].isin(comids_resp)]
 
     elif read_type == 'filename': # Read based on comid being located in the parquet filename
@@ -165,6 +165,8 @@ def fs_read_attr_comid(dir_db_attrs:str | os.PathLike, comids_resp:list | Iterab
                           if file.is_file() and any(f'_{sub}_' in file.name for sub in comids_resp)]
         attr_ddf_subloc = dd.read_parquet(matching_files, storage_options=storage_options)
     else:
+        # Initialize attr_ddf_sub
+        attr_ddf_sub = None
         raise ValueError(f"Unrecognized read_type provided in fs_read_attr_comid: {read_type}")
     
     if attr_ddf_subloc.shape[0].compute() == 0:

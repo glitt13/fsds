@@ -67,7 +67,7 @@ class TestAttrConfigAndVars(unittest.TestCase):
         }
 
         self.assertEqual(attr_obj.attrs_cfg_dict, expected_attrs_cfg_dict)
-    
+
 class TestFsReadAttrComid(unittest.TestCase):   
     @patch('fs_algo.fs_algo_train_eval.dd.read_parquet')
     def test_fs_read_attr_comid(self, mock_read_parquet):
