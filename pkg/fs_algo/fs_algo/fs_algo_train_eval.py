@@ -1792,7 +1792,7 @@ def plot_pred_vs_obs_regr(y_pred: np.ndarray, y_obs: np.ndarray, ds:str, metr:st
     plt.axline(min_vals, max_vals, color='black', linestyle='--')
     plt.ylabel('Predicted {}'.format(metr))
     plt.xlabel('Actual {}'.format(metr))
-    plt.title('Observed vs. RaFTS Predicted Performance: {}'.format(ds))
+    plt.title('Observed vs. RaFTS Predicted Values: {}'.format(ds))
     fig = plt.gcf()
     return fig
 
@@ -1932,13 +1932,13 @@ def plot_map_pred_wrap(test_gdf,dir_out_viz_base, ds,
     test_gdf = test_gdf.to_crs(4326)
 
     # Generate the map
-    plot_title = f"Predicted Performance: {metr} - {ds}"
+    plot_title = f"Predicted Values: {metr} - {ds}"
     plot_pred_map = plot_map_pred(geo_df=test_gdf, states=states,title=plot_title,
                                   metr=metr,colname_data=colname_data)
 
     # Save the plot as a .png file
     plot_pred_map.savefig(path_pred_map_plot, dpi=300, bbox_inches='tight')
-    print(f"Wrote performance map to \n{path_pred_map_plot}")
+    print(f"Wrote prediction map to \n{path_pred_map_plot}")
     plt.clf()
     plt.close()
 
@@ -2009,11 +2009,11 @@ def plot_best_algo_wrap(geo_df, dir_out_viz_base,subdir_anlys, metr,comparison_c
     """
     path_best_map_plot = std_map_best_path(dir_out_viz_base,metr,subdir_anlys)
     states = gen_conus_basemap(dir_out_basemap = dir_out_viz_base)
-    title = f"Best predicted performance: {metr}"
+    title = f"Top predicted value: {metr}"
 
     plot_best_perf = plot_best_perf_map(geo_df, states,title, comparison_col)
     plot_best_perf.savefig(path_best_map_plot, dpi=300, bbox_inches='tight')
-    print(f"Wrote best performance map to \n{path_best_map_plot}")
+    print(f"Wrote top predicted value map to \n{path_best_map_plot}")
 
     plt.clf()
     plt.close()
