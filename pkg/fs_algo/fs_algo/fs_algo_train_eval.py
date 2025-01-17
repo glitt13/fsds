@@ -945,17 +945,18 @@ class AlgoTrainEval:
             self.algo_config_grid  = self.convert_to_list(self.algo_config_grid)
 
     def calculate_rf_uncertainty(self, forest, X_train, X_test):
-        """
-        Calculate uncertainty using forestci for a Random Forest model.
+    """
+    Calculate uncertainty using forestci for a Random Forest model.
 
-        Parameters:
-            forest (RandomForestRegressor): Trained Random Forest model.
-            X_train (ndarray): Training data.
-            X_test (ndarray): Test data.
-
-        Returns:
-            ndarray: Confidence intervals for each prediction.
-        """
+    :param forest: Trained Random Forest model.
+    :type forest: RandomForestRegressor
+    :param X_train: Training data.
+    :type X_train: ndarray
+    :param X_test: Test data.
+    :type X_test: ndarray
+    :return: Confidence intervals for each prediction.
+    :rtype: ndarray
+    """
         ci = fci.random_forest_error(
             forest=forest,
             X_train_shape=X_train.shape,
@@ -1008,14 +1009,14 @@ class AlgoTrainEval:
             # # ci now contains the confidence intervals for each prediction
             
             # --- Calculate confidence intervals ---
-            # ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
+            ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
 
             # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric}#,
-                                    #'ci': ci}
+                                    'metric': self.metric},
+                                    'ci': ci}
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
             
@@ -1149,7 +1150,19 @@ class AlgoTrainEval:
             # path_algo = Path(self.dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
             
             # write trained algorithm
-            joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
+            # joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
+            
+            # --- Modified part: Combine rf model and ci into a single dictionary ---
+            pipeline_with_ci = {
+            'pipe': self.algs_dict[algo]['pipeline'],   # The trained model
+            'confidence_intervals': self.algs_dict[algo].get('ci',None)  # The ci object if it exists
+            }
+            
+            # print(self.algs_dict[algo].get('ci'))
+            
+            # Save the combined pipeline (model + ci) using joblib
+            joblib.dump(pipeline_with_ci, path_algo)
+            
             self.algs_dict[algo]['file_pipe'] = str(path_algo.name)
    
     def org_metadata_alg(self):
