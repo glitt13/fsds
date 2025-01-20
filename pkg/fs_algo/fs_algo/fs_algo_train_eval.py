@@ -950,18 +950,18 @@ class AlgoTrainEval:
             self.algo_config_grid  = self.convert_to_list(self.algo_config_grid)
 
     def calculate_rf_uncertainty(self, forest, X_train, X_test):
-    """
-    Calculate uncertainty using forestci for a Random Forest model.
-
-    :param forest: Trained Random Forest model.
-    :type forest: RandomForestRegressor
-    :param X_train: Training data.
-    :type X_train: ndarray
-    :param X_test: Test data.
-    :type X_test: ndarray
-    :return: Confidence intervals for each prediction.
-    :rtype: ndarray
-    """
+        """
+        Calculate uncertainty using forestci for a Random Forest model.
+    
+        :param forest: Trained Random Forest model.
+        :type forest: RandomForestRegressor
+        :param X_train: Training data.
+        :type X_train: ndarray
+        :param X_test: Test data.
+        :type X_test: ndarray
+        :return: Confidence intervals for each prediction.
+        :rtype: ndarray
+        """
         ci = fci.random_forest_error(
             forest=forest,
             X_train_shape=X_train.shape,
@@ -1020,7 +1020,7 @@ class AlgoTrainEval:
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric},
+                                    'metric': self.metric,
                                     'ci': ci}
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
