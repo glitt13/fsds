@@ -999,19 +999,6 @@ class AlgoTrainEval:
             
             # --- Make predictions using the RandomForest model ---
             y_pred_rf = rf.predict(self.X_test)
-
-            # # --- Inserting forestci for uncertainty calculation ---
-            # ci = fci.random_forest_error(
-            #     forest=rf,
-            #     X_train_shape=self.X_train.shape,
-            #     X_test=self.X_test,  # Assuming X contains test samples
-            #     inbag=None, 
-            #     calibrate=True, 
-            #     memory_constrained=False, 
-            #     memory_limit=None, 
-            #     y_output=0  # Change this if multi-output
-            # )
-            # # ci now contains the confidence intervals for each prediction
             
             # --- Calculate confidence intervals ---
             ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
