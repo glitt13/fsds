@@ -1053,11 +1053,17 @@ class AlgoTrainEval:
             grid_rf = GridSearchCV(pipe_rf, param_grid_rf, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
             
             grid_rf.fit(self.X_train, self.y_train)
+
+            # calculate rf confidence intervals from the best rf estimator
+            ci = self.calculate_rf_uncertainty(grid_rf.best_estimator_.named_steps['randomforestregressor'],
+                                                self.X_train, self.X_test)
+
             self.algs_dict['rf'] = {'algo': grid_rf.best_estimator_.named_steps['randomforestregressor'],
                                     'pipeline': grid_rf.best_estimator_,
                                     'gridsearchcv': grid_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric}
+                                    'metric': self.metric,
+                                    'ci': ci}
         
         if 'mlp' in self.algo_config_grid:  # MULTI-LAYER PERCEPTRON
             if self.verbose:
