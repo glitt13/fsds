@@ -16,7 +16,7 @@ RaFTS provides an approach consisting of four key steps:
 
 **Presentations**:
 - Refer to the [Litt et al 2024](https://github.com/NOAA-OWP/OWP-Presentations/blob/main/AGU/AGU%202024/Poster%20Presentations/Litt_AGU24.pdf) AGU poster for more details on how RaFTS predicts hydrologic model formulation metrics.
-- Refer to the Litt et al 2025 AMS oral presentation for an example of how RaFTS may be used to predict Sobol' Sensitivity of hydrologic model processes per [Mai et al, 2022](https://www.nature.com/articles/s41467-022-28010-7)
+- Refer to the [Litt et al 2025](https://github.com/NOAA-OWP/OWP-Presentations/blob/main/AMS/AMS%202025/Oral%20Presentations/Litt_AMS_2025.pdf) AMS oral presentation for an example of how RaFTS may be used to predict Sobol' Sensitivity of hydrologic model processes per [Mai et al, 2022](https://www.nature.com/articles/s41467-022-28010-7)
 
 **Technology stack**: 
   - **Python:** The features of the formulation-selector that ingest model results and catchment attributes to predict model performances based on catchment attributes is written in Python. 
