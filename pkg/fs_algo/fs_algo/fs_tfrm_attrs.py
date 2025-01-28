@@ -10,7 +10,7 @@ If attributes needed for aggregation do not exist for a given
 comid, the fs_algo.tfrm_attrs. writes the missing attributes to file
 
 Refer to the example config file, e.g. 
-`Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml')`
+`Path(f'~/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml')`
 
 Usage:
 python fs_tfrm_attrs.py "/path/to/tfrm_config.yaml"
@@ -34,8 +34,7 @@ if __name__ == "__main__":
     parser.add_argument('path_tfrm_cfig', type=str, help='Path to the YAML configuration file specific for algorithm training')
     args = parser.parse_args()
 
-    home_dir = Path.home()
-    path_tfrm_cfig = Path(args.path_tfrm_cfig)#path_tfrm_cfig = Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml') 
+    path_tfrm_cfig = Path(args.path_tfrm_cfig)#path_tfrm_cfig = Path(f'~/git/formulation-selector/scripts/eval_ingest/xssa/xssa_attrs_tform.yaml') 
 
     with open(path_tfrm_cfig, 'r') as file:
         tfrm_cfg = yaml.safe_load(file)
@@ -59,6 +58,7 @@ if __name__ == "__main__":
     dir_db_attrs = attr_cfig.attrs_cfg_dict.get('dir_db_attrs')
     dir_std_base = attr_cfig.attrs_cfg_dict.get('dir_std_base')
     datasets = attr_cfig.attrs_cfg_dict.get('datasets')
+    home_dir = attr_cfig.attrs_cfg_dict.get('home_dir',Path.home())
 
     # Define path to store missing comid-attribute pairings:
     path_need_attrs = fta.std_miss_path(dir_db_attrs)
@@ -147,7 +147,6 @@ if __name__ == "__main__":
         #%% Run R script to search for needed data. 
     # The R script reads in the path_need_attrs csv and searches for these data
     if df_missing.shape[0]>0: # Some data were missing
-        home_dir = Path.home()
         path_fs_attrs_miss = fio.get('path_fs_attrs_miss').format(home_dir = home_dir)
 
         if path_fs_attrs_miss:
@@ -207,7 +206,6 @@ if __name__ == "__main__":
                 #  Re-run the Rscript for acquiring missing attributes, then retry attribute retrieval
                 if fio.get('path_fs_attrs_miss'):
                     # Path to the Rscript, requires proc.attr.hydfab package to be installed!
-                    home_dir = Path.home()
                     path_fs_attrs_miss = fio.get('path_fs_attrs_miss').format(home_dir = home_dir)
                     args = [str(path_attr_config)]
                     try:

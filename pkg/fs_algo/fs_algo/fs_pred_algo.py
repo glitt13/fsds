@@ -21,8 +21,7 @@ if __name__ == "__main__":
     # NOTE pred_config should contain the path for path_algo_config
     args = parser.parse_args()
 
-    home_dir = Path.home()
-    path_pred_config = Path(args.path_pred_config) #Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_pred_config.yaml') 
+    path_pred_config = Path(args.path_pred_config) #Path(f'~/git/formulation-selector/scripts/eval_ingest/xssa/xssa_pred_config.yaml') 
     with open(path_pred_config, 'r') as file:
         pred_cfg = yaml.safe_load(file)
 

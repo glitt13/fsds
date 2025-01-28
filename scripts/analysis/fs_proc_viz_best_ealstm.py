@@ -23,8 +23,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'process the algorithm config file')
     parser.add_argument('path_algo_config', type=str, help='Path to the YAML configuration file specific for algorithm training')
     args = parser.parse_args()
-    home_dir = Path.home()
-    path_algo_config = Path(args.path_algo_config) #Path(f'{home_dir}/git/formulation-selector/scripts/eval_ingest/xssa/xssa_algo_config.yaml') 
+
+    path_algo_config = Path(args.path_algo_config) #Path(f'~/git/formulation-selector/scripts/eval_ingest/xssa/xssa_algo_config.yaml') 
 
     with open(path_algo_config, 'r') as file:
         algo_cfg = yaml.safe_load(file)
