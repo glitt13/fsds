@@ -62,12 +62,14 @@ class AttrConfigAndVars:
 
         if len(attrs_sel) == None: # If no attributes generated, assume all attributes are of interest
             attrs_sel = 'all'
-            raise warnings.warn(f"No attributes discerned from 'attr_select'. 
-                                Assuming all attributes desired.",UserWarning)
+            raise warnings.warn(f"No attributes discerned from 'attr_select'." \
+                                "Assuming all attributes desired.",UserWarning)
         
         # Determine if home_dir. Either defined in attribute config file or assumed to be system default.
         home_dir_read = [v for x in self.attr_config['file_io'] for k, v in x.items() if 'home_dir' in k ]
         if len(home_dir_read) == 0:
+            home_dir = str(Path.home())
+        elif home_dir_read[0] is None:
             home_dir = str(Path.home())
         elif not Path(home_dir_read[0]).exists():
             warnings.warn(f"The user-defined home directory path {home_dir_read[0]} " \

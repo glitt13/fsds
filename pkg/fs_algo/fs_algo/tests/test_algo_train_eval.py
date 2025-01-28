@@ -43,6 +43,7 @@ class TestAttrConfigAndVars(unittest.TestCase):
             - dir_base: "{home_dir}/base_dir"
             - dir_db_attrs: "{dir_base}/db_attrs"
             - dir_std_base: "{dir_base}/std_base"
+            - home_dir: "{home_dir}"
             formulation_metadata:
             - datasets: ["dataset1", "dataset2"]
                 ''')
@@ -57,7 +58,7 @@ class TestAttrConfigAndVars(unittest.TestCase):
         mock_file.assert_called_once_with(path, 'r')
 
         # Test if Path.home() was called
-        mock_home.assert_called_once()
+        mock_home.assert_called()
 
         # Test the parsed data from the config
         expected_attrs_cfg_dict = {
@@ -65,6 +66,7 @@ class TestAttrConfigAndVars(unittest.TestCase):
             'dir_db_attrs': '/mocked/home/base_dir/db_attrs',
             'dir_std_base': '/mocked/home/base_dir/std_base',
             'dir_base': '/mocked/home/base_dir',
+            'home_dir': '/mocked/home',
             'datasets': ['dataset1', 'dataset2']
         }
 
