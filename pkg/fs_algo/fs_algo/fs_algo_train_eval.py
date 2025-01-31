@@ -32,6 +32,7 @@ import urllib
 import zipfile
 import forestci as fci
 from sklearn.utils import resample
+from mapie.regression import MapieRegressor
 
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
@@ -1004,7 +1005,7 @@ class AlgoTrainEval:
             # --- Calculate confidence intervals ---
             ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
 
-            # Calculating mlp uncertainty using Bootstrap Aggregating (Bagging)
+            # Calculating rf uncertainty using Bootstrap Aggregating (Bagging)
             n_models_rf = 10  # Number of bootstrap models
             rf_predictions = []
             for jj in range(n_models_rf):
@@ -1032,6 +1033,10 @@ class AlgoTrainEval:
             lower_bound = mean_pred - 1.96 * std_pred
             upper_bound = mean_pred + 1.96 * std_pred
 
+            # --- Calculate prediction intervals using MAPIE ---
+            mapie = MapieRegressor(rf, cv=10, agg_function="median")  
+            mapie.fit(self.X_train, self.y_train)  
+
             # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
@@ -1040,7 +1045,8 @@ class AlgoTrainEval:
                                     'ci': ci,
                                     'Bagging_mean_pred': mean_pred,
                                     'Bagging_lower_bound': lower_bound,
-                                    'Bagging_upper_bound': upper_bound
+                                    'Bagging_upper_bound': upper_bound,
+                                    'mapie': mapie
                                     }
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
@@ -1166,9 +1172,18 @@ class AlgoTrainEval:
                 print(f"      Generating predictions for {type_algo} algorithm.")   
             
             y_pred = pipe.predict(self.X_test)
-            self.preds_dict[k] = {'y_pred': y_pred,
-                             'type': v['type'],
-                             'metric': v['metric']}
+            if 'mapie' in v:
+                y_test_pred, y_test_pis = v['mapie'].predict(self.X_test, alpha=[0.05, 0.32]) # 95% and 68% prediction intervals
+                self.preds_dict[k] = {'y_pred': y_pred,
+                                      'y_mapie_pred': y_test_pred,
+                                      'y_pis': y_test_pis,
+                                      'type': v['type'],
+                                      'metric': v['metric']}
+            else:
+                self.preds_dict[k] = {'y_pred': y_pred,
+                                 'type': v['type'],
+                                 'metric': v['metric']}
+                    
         return self.preds_dict
 
     def evaluate_algos(self) -> dict:
