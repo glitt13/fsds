@@ -6,7 +6,17 @@
 **Description**:  
 The formulation-selector tool, aka Regionalization and Formulation Testing & Selection (RaFTS), is under development. For more information, see the [Wiki](https://github.com/NOAA-OWP/formulation-selector/wiki). 
 
-As NOAA OWP builds the model-agnostic NextGen framework, the hydrologic modeling community will need to know how to optimally select model formulations and estimate parameter values across ungauged catchments. This problem becomes intractable when considering the unique combinations of current and future model formulations combined with the innumerable possible parameter combinations across the continent. To simplify the model selection problem, we apply an analytical tool that predicts hydrologic formulation performance (Bolotin et al., 2022, Liu et al., 2022) using community-generated data. The regionalization and formulation testing and selection (RaFTS) tool readily predicts how models might perform across catchments based on catchment attributes. This decision support tool is designed such that as the hydrologic modeling community generates more results, better decisions can be made on where formulations would be best suited.
+As NOAA OWP builds the model-agnostic NextGen framework, the hydrologic modeling community will need to know how to optimally select model formulations and estimate parameter values across ungauged catchments. This problem becomes intractable when considering the unique combinations of current and future model formulations combined with the innumerable possible parameter combinations across the continent. To simplify the model selection problem, we apply an analytical tool that predicts hydrologic formulation performance (Bolotin et al., 2022, Liu et al., 2022) using community-generated data. The regionalization and formulation testing and selection (RaFTS) tool provides a framework to predict hydrologically-relevant response variables based on catchment-wide predictor variables using supervised machine learning algorithms. Examples of possible response variables include i) hydrologic model formulation performance metrics, 2) hydrologic model process sensitivities, and 3) hydrologic signatures. RaFTS as a decision support tool is designed such that as the hydrologic modeling community generates more results/datasets, better decisions can be made on where formulations would be best suited. 
+
+RaFTS provides an approach consisting of four key steps:
+1) Standardize response variables into a standardized format that the rest of the RaFTS processing steps expect.
+2) Acquire user-defined catchment attributes from publicly available databases.
+3) Train and evaluate supervised machine learning algorithms that predict the response variable(s) of interest based on catchment attribute data.
+4) Predict response variables across user-defined catchments of interest.
+
+**Presentations**:
+- Refer to the [Litt et al 2024](https://github.com/NOAA-OWP/OWP-Presentations/blob/main/AGU/AGU%202024/Poster%20Presentations/Litt_AGU24.pdf) AGU poster for more details on how RaFTS predicts hydrologic model formulation metrics.
+- Refer to the Litt et al 2025 AMS oral presentation for an example of how RaFTS may be used to predict Sobol' Sensitivity of hydrologic model processes per [Mai et al, 2022](https://www.nature.com/articles/s41467-022-28010-7)
 
 **Technology stack**: 
   - **Python:** The features of the formulation-selector that ingest model results and catchment attributes to predict model performances based on catchment attributes is written in Python. 

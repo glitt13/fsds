@@ -31,6 +31,7 @@ import geopandas as gpd
 import urllib
 import zipfile
 import forestci as fci
+from sklearn.utils import resample
 
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
@@ -615,6 +616,11 @@ def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> 
             comids_pred = pd.read_csv(path_pred_locs)[comid_pred_col].values
         except:
             raise ValueError(f"Could not successfully read in {path_pred_locs} & select col {comid_pred_col}")
+    elif '.parquet' in Path(path_pred_locs).suffix:
+        try:
+            comids_pred = pd.read_parquet(path_pred_locs)[comid_pred_col].values
+        except:
+            raise ValueError(f"Could not successfully read in {path_pred_locs} & select col {comid_pred_col}")
     else:
         raise ValueError(f"NEED TO ADD CAPABILITY THAT HANDLES {Path(path_pred_locs).suffix} file extensions")
     comids_pred = [str(x) for x in comids_pred]
@@ -947,14 +953,15 @@ class AlgoTrainEval:
     def calculate_rf_uncertainty(self, forest, X_train, X_test):
         """
         Calculate uncertainty using forestci for a Random Forest model.
-
-        Parameters:
-            forest (RandomForestRegressor): Trained Random Forest model.
-            X_train (ndarray): Training data.
-            X_test (ndarray): Test data.
-
-        Returns:
-            ndarray: Confidence intervals for each prediction.
+    
+        :param forest: Trained Random Forest model.
+        :type forest: RandomForestRegressor
+        :param X_train: Training data.
+        :type X_train: ndarray
+        :param X_test: Test data.
+        :type X_test: ndarray
+        :return: Confidence intervals for each prediction.
+        :rtype: ndarray
         """
         ci = fci.random_forest_error(
             forest=forest,
@@ -993,29 +1000,48 @@ class AlgoTrainEval:
             
             # --- Make predictions using the RandomForest model ---
             y_pred_rf = rf.predict(self.X_test)
-
-            # # --- Inserting forestci for uncertainty calculation ---
-            # ci = fci.random_forest_error(
-            #     forest=rf,
-            #     X_train_shape=self.X_train.shape,
-            #     X_test=self.X_test,  # Assuming X contains test samples
-            #     inbag=None, 
-            #     calibrate=True, 
-            #     memory_constrained=False, 
-            #     memory_limit=None, 
-            #     y_output=0  # Change this if multi-output
-            # )
-            # # ci now contains the confidence intervals for each prediction
             
             # --- Calculate confidence intervals ---
-            # ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
+            ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
+
+            # Calculating mlp uncertainty using Bootstrap Aggregating (Bagging)
+            n_models_rf = 10  # Number of bootstrap models
+            rf_predictions = []
+            for jj in range(n_models_rf):
+                # Resample the training data
+                X_train_resampled, y_train_resampled = resample(self.X_train, self.y_train)
+    
+                # Train a RandomForestRegressor on the resampled data
+                rf = RandomForestRegressor(
+                    n_estimators=self.algo_config['rf'].get('n_estimators', 300),
+                    max_depth=self.algo_config['rf'].get('max_depth', None),
+                    min_samples_split=self.algo_config['rf'].get('min_samples_split', 2),
+                    min_samples_leaf=self.algo_config['rf'].get('min_samples_leaf', 1),
+                    oob_score=False,  # OOB score is not applicable in this manual bagging
+                    random_state=self.rs + jj,  # Different random state for each model
+                )
+                rf.fit(X_train_resampled, y_train_resampled)
+    
+                # Store predictions for the test set
+                rf_predictions.append(rf.predict(self.X_test))
+    
+            # Calculate mean and standard deviation of predictions
+            rf_predictions = np.array(rf_predictions)
+            mean_pred = rf_predictions.mean(axis=0)
+            std_pred = rf_predictions.std(axis=0)
+            lower_bound = mean_pred - 1.96 * std_pred
+            upper_bound = mean_pred + 1.96 * std_pred
 
             # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric}#,
-                                    #'ci': ci}
+                                    'metric': self.metric,
+                                    'ci': ci,
+                                    'Bagging_mean_pred': mean_pred,
+                                    'Bagging_lower_bound': lower_bound,
+                                    'Bagging_upper_bound': upper_bound
+                                    }
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
             
@@ -1034,10 +1060,42 @@ class AlgoTrainEval:
                                max_iter=mlpcfg.get('max_iter', 200))
             pipe_mlp = make_pipeline(StandardScaler(),mlp)
             pipe_mlp.fit(self.X_train, self.y_train)
+
+            # Calculating mlp uncertainty using Bootstrap Aggregating (Bagging)
+            n_models_mlp = 10  # Number of bootstrap models
+            predictions = []
+            
+            for ii in range(n_models_mlp):
+                # Resample the training data
+                X_train_resampled, y_train_resampled = resample(self.X_train, self.y_train)
+                
+                mlp_bagging = MLPRegressor(random_state=self.rs + ii,  # Different seed for each model
+                           hidden_layer_sizes=mlpcfg.get('hidden_layer_sizes', (100,)),
+                           activation=mlpcfg.get('activation', 'relu'),
+                           solver=mlpcfg.get('solver', 'lbfgs'),
+                           alpha=mlpcfg.get('alpha', 0.001),
+                           batch_size=mlpcfg.get('batch_size', 'auto'),
+                           learning_rate=mlpcfg.get('learning_rate', 'constant'),
+                           power_t=mlpcfg.get('power_t', 0.5),
+                           max_iter=mlpcfg.get('max_iter', 200))
+                mlp_bagging.fit(X_train_resampled, y_train_resampled)
+                predictions.append(mlp_bagging.predict(self.X_test))
+                
+            # Calculate mean and standard deviation of predictions
+            predictions = np.array(predictions)
+            mean_pred = predictions.mean(axis=0)
+            std_pred = predictions.std(axis=0)
+            lower_bound = mean_pred - 1.96 * std_pred
+            upper_bound = mean_pred + 1.96 * std_pred
+
             self.algs_dict['mlp'] = {'algo': mlp,
                                      'pipeline': pipe_mlp,
                                      'type': 'multi-layer perceptron regressor',
-                                     'metric': self.metric}
+                                     'metric': self.metric,
+                                     'Bagging_mean_pred': mean_pred,
+                                     'Bagging_lower_bound': lower_bound,
+                                     'Bagging_upper_bound': upper_bound
+                                     }
 
     def train_algos_grid_search(self):
         """Train algorithms using GridSearchCV based on the algo config file.
@@ -1149,7 +1207,19 @@ class AlgoTrainEval:
             # path_algo = Path(self.dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
             
             # write trained algorithm
-            joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
+            # joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
+            
+            # --- Modified part: Combine rf model and ci into a single dictionary ---
+            pipeline_with_ci = {
+            'pipe': self.algs_dict[algo]['pipeline'],   # The trained model
+            'confidence_intervals': self.algs_dict[algo].get('ci',None)  # The ci object if it exists
+            }
+            
+            # print(self.algs_dict[algo].get('ci'))
+            
+            # Save the combined pipeline (model + ci) using joblib
+            joblib.dump(pipeline_with_ci, path_algo)
+            
             self.algs_dict[algo]['file_pipe'] = str(path_algo.name)
    
     def org_metadata_alg(self):
