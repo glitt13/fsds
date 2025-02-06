@@ -1040,6 +1040,19 @@ class AlgoTrainEval:
         
         return mean_pred, std_pred, confidence_intervals
 
+    def calculate_mapie(self, model):
+        """
+        Calculate prediction intervals using the MAPIE library.
+
+        :param model: The trained model (e.g., RandomForestRegressor or MLPRegressor) to compute confidence intervals for.
+        :type model: object
+        :return: A fitted MAPIE regressor with computed intervals.
+        :rtype: MapieRegressor
+        """
+        mapie = MapieRegressor(model, cv="prefit", agg_function="median")  
+        mapie.fit(self.X_train, self.y_train)  
+        return mapie
+
     def train_algos(self):
         """Train algorithms based on what has been defined in the algo config file
 
@@ -1064,8 +1077,9 @@ class AlgoTrainEval:
             pipe_rf.fit(self.X_train, self.y_train)
             
             # --- Calculate prediction intervals using MAPIE ---
-            mapie = MapieRegressor(rf, cv="prefit", agg_function="median")  
-            mapie.fit(self.X_train, self.y_train)  
+            # mapie = MapieRegressor(rf, cv="prefit", agg_function="median")  
+            # mapie.fit(self.X_train, self.y_train)
+            mapie = self.calculate_mapie(rf)
 
             # --- Calculate confidence intervals ---
             ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
@@ -1103,8 +1117,9 @@ class AlgoTrainEval:
             pipe_mlp.fit(self.X_train, self.y_train)
 
             # --- Calculate prediction intervals using MAPIE ---
-            mapie = MapieRegressor(mlp, cv="prefit", agg_function="median")  
-            mapie.fit(self.X_train, self.y_train)  
+            # mapie = MapieRegressor(mlp, cv="prefit", agg_function="median")  
+            # mapie.fit(self.X_train, self.y_train)
+            mapie = self.calculate_mapie(mlp)
 
             # Calculating mlp uncertainty using Bootstrap Aggregating (Bagging)
             mean_pred, std_pred, confidence_intervals = self.mlp_Bagging_ci()
