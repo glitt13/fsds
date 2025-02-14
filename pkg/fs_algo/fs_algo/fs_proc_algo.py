@@ -100,8 +100,9 @@ if __name__ == "__main__":
         
         comid_csv = "C:/Users/SoroushSorourian/git/comids_for_soroush.csv"
         df_comid_csv = pd.read_csv(comid_csv)
-        comids_resp = df_comid_csv.iloc[0]
+        comids_resp = df_comid_csv.iloc[0].astype(str)
         dat_resp = dat_resp.assign_coords(comid = comids_resp)
+        
         # Remove the unknown comids:
         dat_resp = dat_resp.dropna(dim='comid',how='any')
         comids_resp = [x for x in comids_resp if x is not np.nan]
