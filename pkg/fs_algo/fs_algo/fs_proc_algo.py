@@ -93,10 +93,14 @@ if __name__ == "__main__":
 
         # %% COMID retrieval and assignment to response variable's coordinate
         [featureSource,featureID] = fsate._find_feat_srce_id(dat_resp,attr_cfig.attr_config) # e.g. ['nwissite','USGS-{gage_id}']
-        gdf_comid = fsate.fs_retr_nhdp_comids_geom(featureSource=featureSource,
-                                            featureID=featureID,
-                                            gage_ids=dat_resp['gage_id'].values)
-        comids_resp = gdf_comid['comid']
+        # gdf_comid = fsate.fs_retr_nhdp_comids_geom(featureSource=featureSource,
+        #                                     featureID=featureID,
+        #                                     gage_ids=dat_resp['gage_id'].values)
+        # comids_resp = gdf_comid['comid']
+        
+        comid_csv = "C:/Users/SoroushSorourian/git/comids_for_soroush.csv"
+        df_comid_csv = pd.read_csv(comid_csv)
+        comids_resp = df_comid_csv.iloc[0]
         dat_resp = dat_resp.assign_coords(comid = comids_resp)
         # Remove the unknown comids:
         dat_resp = dat_resp.dropna(dim='comid',how='any')
