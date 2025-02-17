@@ -33,8 +33,9 @@ attr_cfig_parse <- function(path_attr_config){
 
   # Define directory paths from the config file
   # Determine if home_dir. Either defined in attribute config file or assumed to be system default.
-  home_dir_read <- glue::glue(base::unlist(raw_config$file_io)[['home_dir']])
-  if (length(home_dir_read)==0){
+
+  home_dir_read <- try(glue::glue(base::unlist(raw_config$file_io)[['home_dir']]))
+  if ("try-error" %in% class(home_dir_read)){
     home_dir <- Sys.getenv("HOME")
   } else if (!dir.exists(home_dir_read)){
     home_dir <- Sys.getenv("HOME")
