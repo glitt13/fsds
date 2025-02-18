@@ -33,8 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('path_viz_config', type=str, help='Path to the YAML configuration file specific for data visualization')
     args = parser.parse_args()
 
-    home_dir = Path.home()
-    path_viz_config = Path(args.path_viz_config) #Path(f'{home_dir}/FSDS/formulation-selector/scripts/eval_ingest/xssa/xssa_viz_config.yaml') 
+    path_viz_config = Path(args.path_viz_config) #Path(f'~/FSDS/formulation-selector/scripts/eval_ingest/xssa/xssa_viz_config.yaml') 
 
     with open(path_viz_config, 'r') as file:
         viz_cfg = yaml.safe_load(file)

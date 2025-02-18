@@ -66,9 +66,20 @@ class AttrConfigAndVars:
 
         if len(attrs_sel) == None: # If no attributes generated, assume all attributes are of interest
             attrs_sel = 'all'
-            raise warnings.warn(f"No attributes discerned from 'attr_select'. Assuming all attributes desired.",UserWarning)
+            raise warnings.warn(f"No attributes discerned from 'attr_select'." \
+                                "Assuming all attributes desired.",UserWarning)
         
-        home_dir = str(Path.home())
+        # Determine if home_dir. Either defined in attribute config file or assumed to be system default.
+        home_dir_read = [v for x in self.attr_config['file_io'] for k, v in x.items() if 'home_dir' in k ]
+        if len(home_dir_read) == 0:
+            home_dir = str(Path.home())
+        elif home_dir_read[0] is None:
+            home_dir = str(Path.home())
+        elif not Path(home_dir_read[0]).exists():
+            warnings.warn(f"The user-defined home directory path {home_dir_read[0]} " \
+             f"inside {self.path_attr_config} does not exist. Using system default {Path.home()}", UserWarning)
+            home_dir = str(Path.home())
+
         dir_base = list([x for x in self.attr_config['file_io'] if 'dir_base' in x][0].values())[0].format(home_dir=home_dir)
         # Location of attributes (predictor data):
         dir_db_attrs = list([x for x in self.attr_config['file_io'] if 'dir_db_attrs' in x][0].values())[0].format(dir_base = dir_base, home_dir=home_dir)
@@ -97,6 +108,7 @@ class AttrConfigAndVars:
                             'dir_db_attrs': dir_db_attrs,
                             'dir_std_base': dir_std_base,
                             'dir_base': dir_base,
+                            'home_dir': home_dir,
                             'datasets': datasets}
 def _check_attr_rm_dupes(attr_df:pd.DataFrame, 
                    uniq_cols:list = ['featureID','featureSource','data_source','attribute','value'],
@@ -1091,7 +1103,7 @@ class AlgoTrainEval:
                                        )
             pipe_rf = make_pipeline(rf)                       
             pipe_rf.fit(self.X_train, self.y_train)
-            
+
             # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
@@ -1099,6 +1111,7 @@ class AlgoTrainEval:
                                     'metric': self.metric,
                                     'Uncertainty': {}
                 }
+
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
             if self.verbose:
                 print(f"      Performing Multilayer Perceptron Training")
@@ -1146,11 +1159,17 @@ class AlgoTrainEval:
             grid_rf = GridSearchCV(pipe_rf, param_grid_rf, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
             
             grid_rf.fit(self.X_train, self.y_train)
+
+            # calculate rf confidence intervals from the best rf estimator
+            ci = self.calculate_rf_uncertainty(grid_rf.best_estimator_.named_steps['randomforestregressor'],
+                                                self.X_train, self.X_test)
+
             self.algs_dict['rf'] = {'algo': grid_rf.best_estimator_.named_steps['randomforestregressor'],
                                     'pipeline': grid_rf.best_estimator_,
                                     'gridsearchcv': grid_rf,
                                     'type': 'random forest regressor',
-                                    'metric': self.metric}
+                                    'metric': self.metric,
+                                    'ci': ci}
         
         if 'mlp' in self.algo_config_grid:  # MULTI-LAYER PERCEPTRON
             if self.verbose:

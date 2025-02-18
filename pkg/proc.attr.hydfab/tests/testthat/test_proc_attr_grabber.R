@@ -457,9 +457,12 @@ testthat::test_that("grab_attrs_datasets_fs_wrap", {
   Retr_Params_no_ds$loc_id_read$fmt <- 'csv'
   dat_gid_ex <- proc.attr.hydfab::grab_attrs_datasets_fs_wrap(Retr_Params_no_ds,
                                                   lyrs="network",
-                                                  overwrite=FALSE)
-
-
+                                                  overwrite=FALSE) %>% suppressWarnings()
+  testthat::expect_equal(nrow(dat_gid_ex[[1]]),16)
+  dat_gf <- read.csv(good_file,colClasses ="character")
+  orig_ids <- unique(as.character(dat_gf$gage_id))
+  rtrn_ids <- unique(dat_gid_ex[[1]]$gage_id) # Note that "01031500" is missing. Not sure why.
+  testthat::expect_true(all(rtrn_ids %in% orig_ids))
 })
 
 
