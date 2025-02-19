@@ -748,16 +748,9 @@ def split_train_test_comid_wrap(dir_std_base:str|os.PathLike,
     dict_gdf_comids = dict()
     for ds in datasets:
 
-        # Generate the geodatframe in a standard format
+        # Generate the geodataframe in a standard format
         dict_resp_gdf = combine_resp_gdf_comid_wrap(dir_std_base,ds,attr_config )
-        # dat_resp = _open_response_data_fs(dir_std_base,ds)
-
-        # [featureSource,featureID] = _find_feat_srce_id(dat_resp,attr_config) 
-
-        # gdf_comid = fs_retr_nhdp_comids_geom(featureSource=featureSource,
-        #                                     featureID=featureID,
-        #                                     gage_ids=dat_resp['gage_id'].values)
-        # gdf_comid['dataset'] = ds        
+    
         dict_gdf_comids[ds] = dict_resp_gdf['gdf_comid']
 
     if len(datasets) > 1:
@@ -1809,12 +1802,16 @@ def plot_pred_vs_obs_regr(y_pred: np.ndarray, y_obs: np.ndarray, ds:str, metr:st
     min_vals = (min_val_rnd,min_val_rnd)
     max_vals = (max_val_rnd,max_val_rnd)
 
+    # compute r^2
+    r2_val =r2_score(y_obs, y_pred)
     # Adapted from plot in bolotinl's fs_perf_viz.py
     plt.scatter(x=y_obs,y=y_pred,alpha=0.3)
     plt.axline(min_vals, max_vals, color='black', linestyle='--')
     plt.ylabel('Predicted {}'.format(metr))
     plt.xlabel('Actual {}'.format(metr))
     plt.title('Observed vs. RaFTS Predicted Values: {}'.format(ds))
+    plt.text(0.05, 0.95, f'$R^2 = {r2_val:.2f}$', transform = plt.gca().transAxes,
+             fontsize=12, verticalalignment='top')
     fig = plt.gcf()
     return fig
 
