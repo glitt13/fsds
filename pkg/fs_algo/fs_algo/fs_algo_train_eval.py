@@ -31,6 +31,10 @@ import geopandas as gpd
 import urllib
 import zipfile
 import forestci as fci
+from sklearn.utils import resample
+from mapie.regression import MapieRegressor
+from scipy.stats import norm
+import random
 
 # %% BASIN ATTRIBUTES (PREDICTORS) & RESPONSE VARIABLES (e.g. METRICS)
 class AttrConfigAndVars:
@@ -610,6 +614,18 @@ def std_test_pred_obs_path(dir_out_anlys_base:str|os.PathLike,ds:str, metr:str
     path_pred_obs.parent.mkdir(exist_ok=True,parents=True)
     return path_pred_obs
 
+def save_Xtrain_to_csv(X_train, dir_out_alg_ds, dataset_id):
+    """
+    Save X_train as a CSV file.
+
+    :param X_train: Training data.
+    :param dir_out_alg_ds: Directory where the output should be stored.
+    :param dataset_id: Identifier for the dataset.
+    """
+    path_Xtrain = std_Xtrain_path(dir_out_alg_ds, dataset_id)
+    X_train_df = pd.DataFrame(X_train)
+    X_train_df.to_csv(path_Xtrain, index=False)
+
 def _read_pred_comid(path_pred_locs: str | os.PathLike, comid_pred_col:str ) -> list[str]:
     """Read the comids from a prediction file formatted as .csv
 
@@ -774,7 +790,10 @@ class AlgoTrainEval:
                  dir_out_alg_ds: str | os.PathLike, dataset_id: str,
                  metr: str, test_size: float = 0.3,rs: int = 32,
                  test_ids = None,test_id_col:str = 'comid',
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 forestci: bool = False,
+                 mapie_alpha : float = 95,
+                 bagging_ci_params: dict = None):
         """The algorithm training and evaluation class.
 
         :param df: The combined response variable and predictor variables DataFrame.
@@ -803,6 +822,10 @@ class AlgoTrainEval:
         :type test_id_col: str
         :param verbose: Should print, defaults to False.
         :type verbose: bool, optional
+        :param mapie_alpha: Confidence interval(s) for MAPIE, defaults to 95.
+        :type test_size: float, optional
+        :param bagging_ci: Configuration dictionary for Bagging-based uncertainty estimation. 
+        :type bagging_ci: dict or None, optional
         """
         # class args
         self.df = df
@@ -816,6 +839,9 @@ class AlgoTrainEval:
         self.rs = rs
         self.dataset_id = dataset_id
         self.verbose = verbose
+        self.forestci = forestci
+        self.mapie_alpha = mapie_alpha
+        self.bagging_ci_params = bagging_ci_params
 
         # train/test split
         self.X_train = pd.DataFrame()
@@ -956,7 +982,7 @@ class AlgoTrainEval:
             # e.g. {'activation':'relu'} becomes {'activation':['relu']}
             self.algo_config_grid  = self.convert_to_list(self.algo_config_grid)
 
-    def calculate_rf_uncertainty(self, forest, X_train, X_test):
+    def calculate_forestci_uncertainty(self, forest, X_train, X_test):
         """
         Calculate uncertainty using forestci for a Random Forest model.
     
@@ -981,6 +1007,57 @@ class AlgoTrainEval:
         )
         return ci
 
+    def calculate_bagging_ci(self, algo_str):
+        """
+        Generalized function to calculate Bagging confidence intervals for any model.
+        """
+        algo_cfg = self.algo_config[algo_str]
+        n_algos = self.bagging_ci_params['n_algos']
+        predictions = []
+        
+        # Initialize the base model
+        if algo_str == 'rf':
+            base_algo = RandomForestRegressor(**algo_cfg)
+        elif algo_str == 'mlp':
+            base_algo = MLPRegressor(**algo_cfg)
+        else:
+            raise ValueError(f"Unsupported algorithm: {algo_str}")
+
+        for _ in range(n_algos):
+            X_train_resampled, y_train_resampled = resample(self.X_train, self.y_train)
+            
+            # Create a new model with the same parameters but a different random_state
+            new_random_state = random.randint(1, 100)
+            algo_tmp = type(base_algo)(**{**base_algo.get_params(), "random_state": new_random_state})
+
+            algo_tmp.fit(X_train_resampled, y_train_resampled)
+            predictions.append(algo_tmp.predict(self.X_test))
+        
+        predictions = np.array(predictions)
+        mean_pred = predictions.mean(axis=0)
+        std_pred = predictions.std(axis=0)
+        confidence_levels = self.bagging_ci_params.get('confidence_levels')
+        confidence_intervals = {}
+
+        for cl in confidence_levels:
+            lower_bound, upper_bound = np.percentile(predictions, [(100 - cl) / 2, 100 - (100 - cl) / 2], axis=0)
+            confidence_intervals[cl] = (lower_bound, upper_bound)
+
+        if 'Uncertainty' not in self.algs_dict[algo_str]:
+            self.algs_dict[algo_str]['Uncertainty'] = {}
+    
+        self.algs_dict[algo_str]['Uncertainty']['bagging_mean_pred'] = mean_pred
+        self.algs_dict[algo_str]['Uncertainty']['bagging_std_pred'] = std_pred
+        self.algs_dict[algo_str]['Uncertainty']['bagging_confidence_intervals'] = confidence_intervals
+    
+    def calculate_mapie(self):
+        """Generalized function to calculate prediction uncertainty using MAPIE."""
+        for algo_str, algo_data in self.algs_dict.items():
+            algo = algo_data['algo']
+            mapie = MapieRegressor(algo, cv="prefit", agg_function="median")  
+            mapie.fit(self.X_train, self.y_train)  
+            self.algs_dict[algo_str]['mapie'] = mapie
+            
     def train_algos(self):
         """Train algorithms based on what has been defined in the algo config file
 
@@ -1003,20 +1080,16 @@ class AlgoTrainEval:
                                        )
             pipe_rf = make_pipeline(rf)                       
             pipe_rf.fit(self.X_train, self.y_train)
-            
-            # --- Calculate confidence intervals ---
-            ci = self.calculate_rf_uncertainty(rf, self.X_train, self.X_test)
 
             # --- Compare predictions with confidence intervals ---
             self.algs_dict['rf'] = {'algo': rf,
                                     'pipeline': pipe_rf,
                                     'type': 'random forest regressor',
                                     'metric': self.metric,
-                                    'ci': ci}
+                                    'Uncertainty': {}
+                }
 
         if 'mlp' in self.algo_config:  # MULTI-LAYER PERCEPTRON
-            
-            
             if self.verbose:
                 print(f"      Performing Multilayer Perceptron Training")
             mlpcfg = self.algo_config['mlp']
@@ -1031,10 +1104,13 @@ class AlgoTrainEval:
                                max_iter=mlpcfg.get('max_iter', 200))
             pipe_mlp = make_pipeline(StandardScaler(),mlp)
             pipe_mlp.fit(self.X_train, self.y_train)
+
             self.algs_dict['mlp'] = {'algo': mlp,
                                      'pipeline': pipe_mlp,
                                      'type': 'multi-layer perceptron regressor',
-                                     'metric': self.metric}
+                                     'metric': self.metric,
+                                     'Uncertainty': {}
+                                     }
 
     def train_algos_grid_search(self):
         """Train algorithms using GridSearchCV based on the algo config file.
@@ -1060,17 +1136,26 @@ class AlgoTrainEval:
             grid_rf = GridSearchCV(pipe_rf, param_grid_rf, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
             
             grid_rf.fit(self.X_train, self.y_train)
+            best_rf = grid_rf.best_estimator_.named_steps['randomforestregressor']
 
-            # calculate rf confidence intervals from the best rf estimator
-            ci = self.calculate_rf_uncertainty(grid_rf.best_estimator_.named_steps['randomforestregressor'],
-                                                self.X_train, self.X_test)
+            # # calculate rf confidence intervals from the best rf estimator
+            # ci = self.calculate_rf_uncertainty(grid_rf.best_estimator_.named_steps['randomforestregressor'],
+            #                                     self.X_train, self.X_test)
+
+            # Initialize Uncertainty dictionary
+            uncertainty_dict = {}
+            
+            # Calculate RF confidence intervals using forestci if enabled
+            if self.forestci:
+                uncertainty_dict['forestci'] = self.calculate_forestci_uncertainty(best_rf, self.X_train, self.X_test)
 
             self.algs_dict['rf'] = {'algo': grid_rf.best_estimator_.named_steps['randomforestregressor'],
                                     'pipeline': grid_rf.best_estimator_,
                                     'gridsearchcv': grid_rf,
                                     'type': 'random forest regressor',
                                     'metric': self.metric,
-                                    'ci': ci}
+                                    'Uncertainty': uncertainty_dict
+                                    }
         
         if 'mlp' in self.algo_config_grid:  # MULTI-LAYER PERCEPTRON
             if self.verbose:
@@ -1091,7 +1176,9 @@ class AlgoTrainEval:
             self.algs_dict['mlp'] = {'algo': grid_mlp.best_estimator_,
                                     'pipeline': grid_mlp,
                                     'type': 'multi-layer perceptron regressor',
-                                    'metric': self.metric}
+                                    'metric': self.metric,
+                                     'Uncertainty': {}
+                                     }
 
     def predict_algos(self) -> dict:
         """ Make predictions with trained algorithms   
@@ -1111,9 +1198,27 @@ class AlgoTrainEval:
                 print(f"      Generating predictions for {type_algo} algorithm.")   
             
             y_pred = pipe.predict(self.X_test)
-            self.preds_dict[k] = {'y_pred': y_pred,
-                             'type': v['type'],
-                             'metric': v['metric']}
+            if 'mapie' in v:
+                y_test_pred, y_test_pis = v['mapie'].predict(self.X_test, alpha=self.mapie_alpha) 
+                
+                # Rename rows
+                row_labels = ['lower_limit', 'upper_limit']
+                
+                # Rename columns based on mapie_alpha values
+                col_labels = [f'pi_{int(alpha)}' for alpha in self.mapie_alpha]  # Convert to percentage
+                
+                # Convert to DataFrame
+                y_pis_list = [pd.DataFrame(y_test_pis[i], index=row_labels, columns=col_labels) for i in range(y_test_pis.shape[0])]
+                
+                self.preds_dict[k] = {'y_pred': y_pred,
+                                      'y_pis': y_pis_list,
+                                      'type': v['type'],
+                                      'metric': v['metric']}
+            else:
+                self.preds_dict[k] = {'y_pred': y_pred,
+                                 'type': v['type'],
+                                 'metric': v['metric']}
+                    
         return self.preds_dict
 
     def evaluate_algos(self) -> dict:
@@ -1152,18 +1257,18 @@ class AlgoTrainEval:
             # path_algo = Path(self.dir_out_alg_ds) / Path(basename_alg_ds_metr + '.joblib')
             
             # write trained algorithm
-            # joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
+            joblib.dump(self.algs_dict[algo]['pipeline'], path_algo)
             
-            # --- Modified part: Combine rf model and ci into a single dictionary ---
-            pipeline_with_ci = {
-            'pipe': self.algs_dict[algo]['pipeline'],   # The trained model
-            'confidence_intervals': self.algs_dict[algo].get('ci',None)  # The ci object if it exists
-            }
+            # # --- Modified part: Combine rf model and ci into a single dictionary ---
+            # pipeline_with_ci = {
+            # 'pipe': self.algs_dict[algo]['pipeline'],   # The trained model
+            # 'confidence_intervals': self.algs_dict[algo].get('ci',None)  # The ci object if it exists
+            # }
             
-            # print(self.algs_dict[algo].get('ci'))
+            # # print(self.algs_dict[algo].get('ci'))
             
-            # Save the combined pipeline (model + ci) using joblib
-            joblib.dump(pipeline_with_ci, path_algo)
+            # # Save the combined pipeline (model + ci) using joblib
+            # joblib.dump(pipeline_with_ci, path_algo)
             
             self.algs_dict[algo]['file_pipe'] = str(path_algo.name)
    
@@ -1198,6 +1303,23 @@ class AlgoTrainEval:
 
         if self.algo_config: # Just run a single simulation for these algos
             self.train_algos()
+
+        # Calculate forestci uncertainty if enabled
+        if 'rf' in self.algo_config and self.forestci: #self.algo_config['rf'].get('forestci', False):
+            self.algs_dict['rf']['Uncertainty']['forestci'] = self.calculate_forestci_uncertainty(
+                self.algs_dict['rf']['algo'], self.X_train, self.X_test
+            )
+            # Save X_train as a CSV file
+            save_Xtrain_to_csv(self.X_train, self.dir_out_alg_ds,self.dataset_id)
+
+        # Calculate Bagging uncertainty if enabled
+        for algo_str in self.algo_config.keys():  
+            if self.bagging_ci_params.get('n_algos', None):
+                self.calculate_bagging_ci(algo_str)
+
+        # --- Calculate prediction intervals using MAPIE if enabled ---
+        if getattr(self, 'mapie_alpha', None):
+            self.calculate_mapie()
 
         # Make predictions  (aka validation) 
         self.predict_algos()
